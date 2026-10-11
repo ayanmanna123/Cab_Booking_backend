@@ -17,5 +17,6 @@ router.patch('/location', requireAuth, validateRequest(updateDriverLocationSchem
 router.patch('/status', requireAuth, validateRequest(toggleDriverStatusSchema), DriverController.toggleOnlineStatus);
 router.get('/nearby', validateRequest(getNearbyDriversSchema, 'query'), DriverController.getNearbyDrivers);
 router.get('/dashboard', requireAuth, DriverController.getDashboard);
+router.post('/upload-car-image', requireAuth, DriverController.uploadCarImage);
 
 export default router;

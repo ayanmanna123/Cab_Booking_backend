@@ -81,4 +81,46 @@ export class DriverController {
       next(err);
     }
   }
+
+  static async uploadCarImage(req, res, next) {
+    try {
+      const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+      if (!imageBase64) {
+        return ApiResponse.badRequest(res, 'imageBase64 data is required');
+      }
+
+      const client = DriverService.getClient();
+      if (!client) {
+        return ApiResponse.error(res, 'Supabase client not available');
+      }
+
+      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+      const fileName = `driver_${req.user.id || 'reg'}_${Date.now()}.${ext}`;
+
+      const { data, error } = await client.storage
+        .from('car-images')
+        .upload(fileName, buffer, {
+          contentType: mimeType,
+          upsert: true
+        });
+
+      if (error) {
+        throw new Error(`Supabase storage error: ${error.message}`);
+      }
+
+      const { data: publicUrlData } = client.storage
+        .from('car-images')
+        .getPublicUrl(fileName);
+
+      return ApiResponse.success(
+        res,
+        { url: publicUrlData.publicUrl, fileName },
+        'Car image uploaded to Supabase car-images bucket successfully'
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
 }

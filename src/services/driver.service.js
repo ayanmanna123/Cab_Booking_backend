@@ -29,11 +29,11 @@ export class DriverService {
     const payload = {
       user_id: userId,
       vehicle_type_id: vehicleTypeId,
-      vehicle_make: driverData.vehicleMake || 'Toyota',
-      vehicle_model: driverData.vehicleModel || 'Camry',
-      vehicle_year: Number(driverData.vehicleYear) || new Date().getFullYear(),
-      license_plate: driverData.licensePlate,
-      vehicle_color: driverData.vehicleColor || 'Silver',
+      vehicle_make: driverData.vehicleMake || driverData.vehicle_make || 'Toyota',
+      vehicle_model: driverData.vehicleModel || driverData.vehicle_model || 'Camry',
+      vehicle_year: Number(driverData.vehicleYear || driverData.vehicle_year) || new Date().getFullYear(),
+      license_plate: driverData.licensePlate || driverData.license_plate || 'DL 01 AB 1234',
+      vehicle_color: driverData.vehicleColor || driverData.vehicle_color || 'Silver',
       is_online: false,
       is_available: true,
       current_latitude: driverData.currentLatitude || 37.7749,
@@ -52,9 +52,9 @@ export class DriverService {
 
       const userUpdatePayload = {
         id: userId,
-        full_name: driverData.fullName || existingUser?.full_name || 'Uber Driver',
+        full_name: driverData.fullName || driverData.full_name || existingUser?.full_name || 'Uber Driver',
         phone: driverData.phone || existingUser?.phone || null,
-        avatar_url: driverData.carImageUrl || existingUser?.avatar_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400',
+        avatar_url: driverData.carImageUrl || driverData.car_image_url || existingUser?.avatar_url || 'https://rhcaijeebyyftohqxhjw.supabase.co/storage/v1/object/public/car-images/uberx.jpg',
         role: 'driver',
         emergency_contact_name: driverData.emergencyContactName || existingUser?.emergency_contact_name || null,
         emergency_contact_phone: driverData.emergencyContactPhone || existingUser?.emergency_contact_phone || null,
@@ -81,12 +81,24 @@ export class DriverService {
       // Merge extra client metadata for seamless frontend state
       return {
         ...data,
-        aadhaar_number: driverData.aadhaarNumber,
-        driving_license: driverData.drivingLicense,
-        car_image_url: driverData.carImageUrl,
-        license_image_url: driverData.licenseImageUrl,
-        payout_method: driverData.payoutMethod,
-        upi_id: driverData.upiId
+        fullName: userUpdatePayload.full_name,
+        phone: userUpdatePayload.phone,
+        email: userUpdatePayload.email,
+        vehicleMake: payload.vehicle_make,
+        vehicleModel: payload.vehicle_model,
+        vehicleYear: payload.vehicle_year,
+        vehicleColor: payload.vehicle_color,
+        licensePlate: payload.license_plate,
+        carImageUrl: userUpdatePayload.avatar_url,
+        aadhaarNumber: driverData.aadhaarNumber || driverData.aadhaar_number,
+        drivingLicense: driverData.drivingLicense || driverData.driving_license,
+        payoutMethod: driverData.payoutMethod || driverData.payout_method || 'UPI',
+        upiId: driverData.upiId || driverData.upi_id || '',
+        emergencyContactName: userUpdatePayload.emergency_contact_name,
+        emergencyContactPhone: userUpdatePayload.emergency_contact_phone,
+        totalEarnings: 0,
+        totalRides: 0,
+        rating: 5.0
       };
     }
 
@@ -117,7 +129,28 @@ export class DriverService {
         .maybeSingle();
 
       if (error) throw new Error(error.message);
-      return data;
+      if (!data) return null;
+
+      const user = data.cb_users || {};
+      const vehicleType = data.cb_vehicle_types || {};
+      return {
+        ...data,
+        fullName: user.full_name || 'Driver Partner',
+        phone: user.phone || '',
+        email: user.email || '',
+        vehicleMake: data.vehicle_make || 'Toyota',
+        vehicleModel: data.vehicle_model || 'Camry',
+        vehicleYear: data.vehicle_year || 2024,
+        vehicleColor: data.vehicle_color || 'Silver',
+        licensePlate: data.license_plate || 'DL 01 AB 1234',
+        vehicleTypeId: data.vehicle_type_id || 'economy',
+        vehicleTierName: vehicleType.name || 'UberX',
+        carImageUrl: data.car_image_url || user.avatar_url || 'https://rhcaijeebyyftohqxhjw.supabase.co/storage/v1/object/public/car-images/uberx.jpg',
+        aadhaarNumber: data.stripe_account_id?.replace('AADHAAR:', '') || '',
+        drivingLicense: data.driving_license || '',
+        payoutMethod: data.payout_method || 'UPI',
+        upiId: data.upi_id || ''
+      };
     }
     return memoryDrivers.get(`user_${userId}`) || null;
   }

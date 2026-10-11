@@ -12,13 +12,14 @@ export class UserService {
 
   static async syncUser({ id, email, fullName, phone, avatarUrl, role = 'rider' }) {
     const client = this.getClient();
+    const effectiveEmail = email || `${id.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`;
     const userData = {
       id,
-      email,
-      full_name: fullName,
+      email: effectiveEmail,
+      full_name: fullName || 'Uber User',
       phone: phone || null,
       avatar_url: avatarUrl || null,
-      role,
+      role: role || 'rider',
       updated_at: new Date().toISOString()
     };
 

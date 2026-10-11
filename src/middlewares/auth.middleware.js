@@ -18,7 +18,14 @@ export const requireAuth = async (req, res, next) => {
     let userEmail = null;
     let userRole = 'rider';
 
-    // 1. Attempt decoding JWT (Clerk, Supabase, or Custom JWT)
+    // 1. Extract potential custom Clerk / client user headers
+    const headerUserId = req.headers['x-user-id'];
+    const headerUserEmail = req.headers['x-user-email'];
+    const headerUserName = req.headers['x-user-name'];
+    const headerUserPhone = req.headers['x-user-phone'];
+    const headerUserAvatar = req.headers['x-user-avatar'];
+
+    // 2. Attempt decoding JWT (Clerk, Supabase, or Custom JWT)
     try {
       const decoded = jwt.decode(token);
       if (decoded) {
@@ -30,17 +37,25 @@ export const requireAuth = async (req, res, next) => {
       // ignore decode failure, will try direct token matching
     }
 
-    // Fallback: If token is a test user token (e.g. Bearer test-user-123 or rider_xxx)
-    if (!userId && token) {
+    // Header userId takes precedence over fallback token strings
+    if (headerUserId) {
+      userId = headerUserId;
+    } else if (!userId && token && token !== 'rider_official_user') {
       userId = token;
       userEmail = `${token}@uberclone.local`;
+    } else if (!userId && token === 'rider_official_user') {
+      userId = 'rider_official_user';
+    }
+
+    if (headerUserEmail) {
+      userEmail = headerUserEmail;
     }
 
     if (!userId) {
       return ApiResponse.unauthorized(res, 'Unable to extract valid user from token');
     }
 
-    // 2. Fetch or sync user from Supabase database if available
+    // 3. Fetch or sync user from Supabase database if available
     let dbUser = null;
     const client = supabaseAdmin || supabase;
     if (client) {
@@ -53,15 +68,46 @@ export const requireAuth = async (req, res, next) => {
       if (!error && data) {
         dbUser = data;
         userRole = data.role;
+
+        // If client sent real user details that differ from DB placeholder, update them
+        if (headerUserName || headerUserEmail || headerUserPhone || headerUserAvatar) {
+          const updateData = {};
+          if (headerUserName && headerUserName !== 'Uber Rider' && dbUser.full_name !== headerUserName) {
+            updateData.full_name = headerUserName;
+          }
+          if (headerUserEmail && !headerUserEmail.endsWith('@uberclone.local') && dbUser.email !== headerUserEmail) {
+            updateData.email = headerUserEmail;
+          }
+          if (headerUserPhone && dbUser.phone !== headerUserPhone) {
+            updateData.phone = headerUserPhone;
+          }
+          if (headerUserAvatar && dbUser.avatar_url !== headerUserAvatar) {
+            updateData.avatar_url = headerUserAvatar;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            updateData.updated_at = new Date().toISOString();
+            const { data: updated } = await client
+              .from(DB_TABLES.USERS)
+              .update(updateData)
+              .eq('id', userId)
+              .select()
+              .maybeSingle();
+            if (updated) dbUser = updated;
+          }
+        }
       } else {
-        // Auto-provision user in cb_users to satisfy foreign key constraints
+        // Auto-provision user in cb_users with real profile data
+        const effectiveName = headerUserName || 'Uber Rider';
         const sanitizedEmail = userEmail || `${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`;
         const { data: createdUser, error: createErr } = await client
           .from(DB_TABLES.USERS)
           .upsert({
             id: userId,
             email: sanitizedEmail,
-            full_name: 'Uber Rider',
+            full_name: effectiveName,
+            phone: headerUserPhone || null,
+            avatar_url: headerUserAvatar || null,
             role: userRole || 'rider',
             rating: 5.0,
             is_active: true,
@@ -80,11 +126,11 @@ export const requireAuth = async (req, res, next) => {
     req.user = {
       id: userId,
       email: dbUser?.email || userEmail,
-      fullName: dbUser?.full_name || 'Uber Rider',
+      fullName: dbUser?.full_name || headerUserName || 'Uber Rider',
       role: dbUser?.role || userRole,
-      phone: dbUser?.phone || null,
+      phone: dbUser?.phone || headerUserPhone || null,
       rating: dbUser?.rating || 5.0,
-      avatarUrl: dbUser?.avatar_url || null,
+      avatarUrl: dbUser?.avatar_url || headerUserAvatar || null,
       rawDbUser: dbUser
     };
 
