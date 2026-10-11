@@ -16,7 +16,13 @@ app.use(helmet());
 // CORS configuration
 app.use(
   cors({
-    origin: [ENV.CLIENT_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl) or any localhost port during development
+      if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || origin === ENV.CLIENT_URL) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Dev permissive
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })
