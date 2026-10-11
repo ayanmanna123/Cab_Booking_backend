@@ -25,7 +25,7 @@ export const requestRideSchema = z.object({
   dropoffAddress: z.string().min(3, 'Dropoff address is required'),
   dropoffLatitude: coordinateSchema,
   dropoffLongitude: coordinateSchema,
-  vehicleType: z.enum(['economy', 'comfort', 'xl', 'black']).default('economy'),
+  vehicleType: z.string().optional().default('uber_go_ac'),
   stops: z.array(stopSchema).optional().default([]),
   promoCode: z.string().optional()
 });

@@ -5,6 +5,7 @@ import { FareService } from './fare.service.js';
 import { calculateRideFare } from '../utils/fareCalculator.js';
 import { PromoService } from './promo.service.js';
 import { emitToUser, emitToDriver, broadcastToDrivers } from '../sockets/socketManager.js';
+import { DriverService } from './driver.service.js';
 import { logger } from '../utils/logger.js';
 
 const memoryRides = new Map();
@@ -35,17 +36,8 @@ export class RideService {
       promo = await PromoService.getPromoByCode(rideData.promoCode);
     }
 
-    const vehicleTierMap = {
-      'uberx': 'economy',
-      'uber comfort': 'comfort',
-      'uberxl': 'xl',
-      'uber black': 'black',
-      'economy': 'economy',
-      'comfort': 'comfort',
-      'xl': 'xl',
-      'black': 'black'
-    };
-    const vehicleTypeId = vehicleTierMap[(rideData.vehicleType || '').toLowerCase()] || 'economy';
+    const rawTier = (rideData.vehicleType || 'uber_go_ac').toLowerCase();
+    const vehicleTypeId = rawTier;
 
     const fare = calculateRideFare({
       vehicleType: vehicleTypeId,
@@ -124,8 +116,7 @@ export class RideService {
       memoryRides.set(id, rideRecord);
     }
 
-    // Broadcast new ride offer to active drivers via Socket.io
-    broadcastToDrivers(SOCKET_EVENTS.RIDE_NEW_OFFER, {
+    const offerPayload = {
       rideId: rideRecord.id,
       pickupAddress: rideRecord.pickup_address,
       dropoffAddress: rideRecord.dropoff_address,
@@ -136,8 +127,29 @@ export class RideService {
       distanceKm: rideRecord.distance_km,
       durationMin: rideRecord.duration_min,
       estimatedFare: rideRecord.final_fare || rideRecord.estimated_fare,
-      vehicleType: rideRecord.vehicle_type_id
-    });
+      vehicleType: rideRecord.vehicle_type_id,
+      vehicleTier: rideData.vehicleType || rideRecord.vehicle_type_id
+    };
+
+    // Broadcast new ride offer to active drivers via Socket.io
+    broadcastToDrivers(SOCKET_EVENTS.RIDE_NEW_OFFER, offerPayload);
+
+    // Explicitly target each online driver matching this vehicle type
+    try {
+      const nearbyDrivers = await DriverService.getNearbyDrivers({
+        latitude: rideRecord.pickup_latitude,
+        longitude: rideRecord.pickup_longitude,
+        vehicleType: rideRecord.vehicle_type_id,
+        radiusKm: 25
+      });
+      if (nearbyDrivers && nearbyDrivers.length > 0) {
+        nearbyDrivers.forEach((driver) => {
+          emitToDriver(driver.id, SOCKET_EVENTS.RIDE_NEW_OFFER, offerPayload);
+        });
+      }
+    } catch (err) {
+      logger.warn('Could not query nearby drivers for targeted dispatch:', err.message);
+    }
 
     return rideRecord;
   }
