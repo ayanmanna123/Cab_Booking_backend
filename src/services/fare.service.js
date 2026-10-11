@@ -25,8 +25,9 @@ export class FareService {
     return Object.entries(DEFAULT_VEHICLE_RATES).map(([id, rates]) => ({
       id,
       name: rates.name,
-      description: `${rates.name} ride service`,
+      description: rates.description || `${rates.name} ride service`,
       capacity: rates.capacity,
+      image_url: rates.imageUrl || rates.image_url,
       base_fare: rates.baseFare,
       per_km_rate: rates.perKmRate,
       per_minute_rate: rates.perMinuteRate,
@@ -96,11 +97,17 @@ export class FareService {
   }
 
   static async estimateFares({ pickupLatitude, pickupLongitude, dropoffLatitude, dropoffLongitude, stops = [], promoCode = null }) {
-    const { totalDistanceKm, durationMin } = this.calculateRouteDistanceAndDuration(
-      { latitude: pickupLatitude, longitude: pickupLongitude },
-      { latitude: dropoffLatitude, longitude: dropoffLongitude },
+    // 1. Calculate real driving road distance and travel time using Leaflet / OSRM map engine
+    const route = await this.getRoutePolyline({
+      pickupLatitude,
+      pickupLongitude,
+      dropoffLatitude,
+      dropoffLongitude,
       stops
-    );
+    });
+
+    const totalDistanceKm = Number(route.distanceKm || 0);
+    const durationMin = Number(route.durationMin || 0);
 
     const vehicleTypes = await this.getVehicleTypes();
 
@@ -109,7 +116,7 @@ export class FareService {
       promo = await PromoService.getPromoByCode(promoCode);
     }
 
-    // Calculate surge multiplier dynamically (e.g. simulated baseline 1.0)
+    // Calculate surge multiplier dynamically (e.g. baseline 1.0)
     const surgeMultiplier = 1.0;
 
     const estimates = vehicleTypes.map((tier) => {
@@ -132,6 +139,8 @@ export class FareService {
         durationMin,
         surgeMultiplier,
         baseFare: breakdown.baseFare,
+        distanceFare: breakdown.distanceFare,
+        timeFare: breakdown.timeFare,
         subtotal: breakdown.subtotal,
         discountAmount: breakdown.discountAmount,
         finalFare: breakdown.finalFare,
@@ -143,6 +152,8 @@ export class FareService {
       distanceKm: totalDistanceKm,
       durationMin,
       estimates,
+      coordinates: route.coordinates,
+      routingSource: route.source || 'OSRM_Leaflet_Engine',
       appliedPromo: promo ? { code: promo.code, discountPercentage: promo.discount_percentage } : null
     };
   }

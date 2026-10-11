@@ -19,11 +19,16 @@ export class RideService {
   }
 
   static async requestRide(riderId, rideData) {
-    const { totalDistanceKm, durationMin } = FareService.calculateRouteDistanceAndDuration(
-      { latitude: rideData.pickupLatitude, longitude: rideData.pickupLongitude },
-      { latitude: rideData.dropoffLatitude, longitude: rideData.dropoffLongitude },
-      rideData.stops || []
-    );
+    const route = await FareService.getRoutePolyline({
+      pickupLatitude: rideData.pickupLatitude,
+      pickupLongitude: rideData.pickupLongitude,
+      dropoffLatitude: rideData.dropoffLatitude,
+      dropoffLongitude: rideData.dropoffLongitude,
+      stops: rideData.stops || []
+    });
+
+    const totalDistanceKm = Number(route.distanceKm || 0);
+    const durationMin = Number(route.durationMin || 0);
 
     let promo = null;
     if (rideData.promoCode) {

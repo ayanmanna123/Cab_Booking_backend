@@ -1,40 +1,158 @@
-// Default pricing configuration if database vehicle type isn't queried
+// Default pricing configuration in Indian Rupees (INR ₹)
 export const DEFAULT_VEHICLE_RATES = {
+  uber_go_ac: {
+    name: 'Uber Go AC',
+    description: 'Affordable compact AC rides',
+    baseFare: 50.00,
+    perKmRate: 14.00,
+    perMinuteRate: 1.50,
+    minimumFare: 70.00,
+    cancellationFee: 30.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png'
+  },
+  bike: {
+    name: 'Bike',
+    description: 'Affordable 2 wheeler rides',
+    baseFare: 25.00,
+    perKmRate: 7.50,
+    perMinuteRate: 0.80,
+    minimumFare: 35.00,
+    cancellationFee: 15.00,
+    capacity: 1,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/MotorcycleOrange-249-0.png'
+  },
+  go_non_ac: {
+    name: 'Go Non AC',
+    description: 'Everyday affordable rides',
+    baseFare: 45.00,
+    perKmRate: 12.50,
+    perMinuteRate: 1.20,
+    minimumFare: 60.00,
+    cancellationFee: 25.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-433-0.png'
+  },
+  uber_xl: {
+    name: 'UberXL',
+    description: 'Affordable rides for groups up to 6',
+    baseFare: 110.00,
+    perKmRate: 22.00,
+    perMinuteRate: 2.20,
+    minimumFare: 150.00,
+    cancellationFee: 50.00,
+    capacity: 6,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/MinivanLuggage-169-0.png'
+  },
+  go_priority: {
+    name: 'Go Priority',
+    description: 'Priority pickup',
+    baseFare: 60.00,
+    perKmRate: 16.00,
+    perMinuteRate: 1.60,
+    minimumFare: 85.00,
+    cancellationFee: 35.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Lightning-435-0.png'
+  },
+  premier_ac: {
+    name: 'Premier AC',
+    description: 'Comfortable sedans, top-quality drivers',
+    baseFare: 75.00,
+    perKmRate: 18.00,
+    perMinuteRate: 1.80,
+    minimumFare: 100.00,
+    cancellationFee: 45.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/SedanComfort-Sparkles-523.png'
+  },
+  parcel_bike: {
+    name: 'Parcel Bike',
+    description: 'Send packages up to 20 kg',
+    baseFare: 30.00,
+    perKmRate: 8.00,
+    perMinuteRate: 0.90,
+    minimumFare: 40.00,
+    cancellationFee: 15.00,
+    capacity: 1,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/MotorcycleCourier-037-0.png'
+  },
+  parcel_scooter: {
+    name: 'Parcel Scooter',
+    description: 'Send packages up to 25 kg',
+    baseFare: 35.00,
+    perKmRate: 8.50,
+    perMinuteRate: 1.00,
+    minimumFare: 45.00,
+    cancellationFee: 15.00,
+    capacity: 1,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/VespaCourier-298-0.png'
+  },
+  premier_xl: {
+    name: 'Premier XL',
+    description: 'Newer XL cars with top-rated drivers',
+    baseFare: 130.00,
+    perKmRate: 25.00,
+    perMinuteRate: 2.50,
+    minimumFare: 180.00,
+    cancellationFee: 60.00,
+    capacity: 6,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/Minivan-DiamondSparklesNew-529.png'
+  },
+  bike_saver: {
+    name: 'Bike Saver',
+    description: 'Save more when not in rush',
+    baseFare: 20.00,
+    perKmRate: 7.00,
+    perMinuteRate: 0.70,
+    minimumFare: 30.00,
+    cancellationFee: 15.00,
+    capacity: 1,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/MotorcycleOrange-Clock-333-0.png'
+  },
   economy: {
-    name: 'UberX',
-    baseFare: 2.50,
-    perKmRate: 1.30,
-    perMinuteRate: 0.25,
-    minimumFare: 5.00,
-    cancellationFee: 3.00,
-    capacity: 4
+    name: 'Uber Go AC',
+    description: 'Affordable compact AC rides',
+    baseFare: 50.00,
+    perKmRate: 14.00,
+    perMinuteRate: 1.50,
+    minimumFare: 70.00,
+    cancellationFee: 30.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png'
   },
   comfort: {
-    name: 'Uber Comfort',
-    baseFare: 4.00,
-    perKmRate: 1.75,
-    perMinuteRate: 0.35,
-    minimumFare: 7.50,
-    cancellationFee: 4.50,
-    capacity: 4
+    name: 'Premier AC',
+    description: 'Comfortable sedans, top-quality drivers',
+    baseFare: 75.00,
+    perKmRate: 18.00,
+    perMinuteRate: 1.80,
+    minimumFare: 100.00,
+    cancellationFee: 45.00,
+    capacity: 4,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/SedanComfort-Sparkles-523.png'
   },
   xl: {
     name: 'UberXL',
-    baseFare: 5.50,
-    perKmRate: 2.20,
-    perMinuteRate: 0.45,
-    minimumFare: 10.00,
-    cancellationFee: 5.00,
-    capacity: 6
+    description: 'Affordable rides for groups up to 6',
+    baseFare: 110.00,
+    perKmRate: 22.00,
+    perMinuteRate: 2.20,
+    minimumFare: 150.00,
+    cancellationFee: 50.00,
+    capacity: 6,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/MinivanLuggage-169-0.png'
   },
   black: {
-    name: 'Uber Black',
-    baseFare: 8.00,
-    perKmRate: 3.50,
-    perMinuteRate: 0.65,
-    minimumFare: 15.00,
-    cancellationFee: 8.00,
-    capacity: 4
+    name: 'Premier XL',
+    description: 'Newer XL cars with top-rated drivers',
+    baseFare: 130.00,
+    perKmRate: 25.00,
+    perMinuteRate: 2.50,
+    minimumFare: 180.00,
+    cancellationFee: 60.00,
+    capacity: 6,
+    imageUrl: 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/Minivan-DiamondSparklesNew-529.png'
   }
 };
 
