@@ -53,6 +53,26 @@ export const requireAuth = async (req, res, next) => {
       if (!error && data) {
         dbUser = data;
         userRole = data.role;
+      } else {
+        // Auto-provision user in cb_users to satisfy foreign key constraints
+        const sanitizedEmail = userEmail || `${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`;
+        const { data: createdUser, error: createErr } = await client
+          .from(DB_TABLES.USERS)
+          .upsert({
+            id: userId,
+            email: sanitizedEmail,
+            full_name: 'Uber Rider',
+            role: userRole || 'rider',
+            rating: 5.0,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' })
+          .select()
+          .maybeSingle();
+
+        if (!createErr && createdUser) {
+          dbUser = createdUser;
+        }
       }
     }
 

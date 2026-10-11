@@ -30,8 +30,20 @@ export class RideService {
       promo = await PromoService.getPromoByCode(rideData.promoCode);
     }
 
+    const vehicleTierMap = {
+      'uberx': 'economy',
+      'uber comfort': 'comfort',
+      'uberxl': 'xl',
+      'uber black': 'black',
+      'economy': 'economy',
+      'comfort': 'comfort',
+      'xl': 'xl',
+      'black': 'black'
+    };
+    const vehicleTypeId = vehicleTierMap[(rideData.vehicleType || '').toLowerCase()] || 'economy';
+
     const fare = calculateRideFare({
-      vehicleType: rideData.vehicleType || 'economy',
+      vehicleType: vehicleTypeId,
       distanceKm: totalDistanceKm,
       durationMin,
       surgeMultiplier: 1.0,
@@ -43,7 +55,7 @@ export class RideService {
 
     const payload = {
       rider_id: riderId,
-      vehicle_type_id: rideData.vehicleType || 'economy',
+      vehicle_type_id: vehicleTypeId,
       status: RIDE_STATUS.REQUESTED,
       pickup_address: rideData.pickupAddress,
       pickup_latitude: rideData.pickupLatitude,
@@ -69,6 +81,27 @@ export class RideService {
     let rideRecord = null;
 
     if (client) {
+      // Guarantee rider exists in cb_users to satisfy cb_rides_rider_id_fkey constraint
+      const { data: userExists } = await client
+        .from(DB_TABLES.USERS)
+        .select('id')
+        .eq('id', riderId)
+        .maybeSingle();
+
+      if (!userExists) {
+        await client
+          .from(DB_TABLES.USERS)
+          .upsert({
+            id: riderId,
+            email: `${riderId.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`,
+            full_name: 'Uber Rider',
+            role: 'rider',
+            rating: 5.0,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+      }
+
       const { data, error } = await client
         .from(DB_TABLES.RIDES)
         .insert(payload)
