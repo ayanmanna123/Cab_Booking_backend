@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { stripe } from '../config/stripe.js';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
-import { PAYMENT_STATUS } from '../config/constants.js';
+import { PAYMENT_STATUS, DB_TABLES } from '../config/constants.js';
 import { logger } from '../utils/logger.js';
 
 const memoryPayments = new Map();
@@ -17,7 +17,7 @@ export class PaymentService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select('*')
         .eq('id', rideId)
         .single();
@@ -70,7 +70,7 @@ export class PaymentService {
 
     if (client) {
       const { data, error } = await client
-        .from('payments')
+        .from(DB_TABLES.PAYMENTS)
         .insert(paymentRecord)
         .select()
         .single();
@@ -104,7 +104,7 @@ export class PaymentService {
 
     if (client) {
       const { data, error } = await client
-        .from('payments')
+        .from(DB_TABLES.PAYMENTS)
         .update(updates)
         .eq('ride_id', rideId)
         .select()
@@ -128,16 +128,16 @@ export class PaymentService {
     const client = this.getClient();
     if (client) {
       const { data: ride } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(full_name, email),
-          driver:driver_profiles!rides_driver_id_fkey(
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(full_name, email),
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             vehicle_make, vehicle_model, license_plate,
-            driver_user:users(full_name)
+            driver_user:${DB_TABLES.USERS}(full_name)
           ),
-          payments(*),
-          vehicle_types(name)
+          ${DB_TABLES.PAYMENTS}(*),
+          ${DB_TABLES.VEHICLE_TYPES}(name)
         `)
         .eq('id', rideId)
         .single();

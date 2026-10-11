@@ -1,7 +1,6 @@
 -- ==============================================================================
 -- CAB BOOKING / UBER CLONE - COMPREHENSIVE SUPABASE POSTGRESQL SCHEMA
--- Designed for Enterprise Full-Stack Scalability
--- Compatible with Supabase SQL Editor and Direct Postgres Connections
+-- All table names are prefixed with `cb_`
 -- ==============================================================================
 
 -- Enable required extensions
@@ -81,10 +80,10 @@ EXCEPTION
 END $$;
 
 -- ==============================================================================
--- 1. USERS TABLE
+-- 1. CB_USERS TABLE
 -- Stores both riders and driver accounts (syncs seamlessly with Clerk or Supabase Auth)
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE IF NOT EXISTS public.cb_users (
     id TEXT PRIMARY KEY, -- Supports Clerk user_xxx ID or Supabase UUID
     email TEXT UNIQUE NOT NULL,
     phone TEXT,
@@ -102,10 +101,10 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- ==============================================================================
--- 2. VEHICLE TYPES / TIERS TABLE
+-- 2. CB_VEHICLE_TYPES / TIERS TABLE
 -- Defines vehicle tiers (UberX, Comfort, UberXL, Black, etc.) & fare formulas
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.vehicle_types (
+CREATE TABLE IF NOT EXISTS public.cb_vehicle_types (
     id TEXT PRIMARY KEY, -- e.g. 'economy', 'comfort', 'xl', 'black'
     name TEXT NOT NULL,
     description TEXT,
@@ -121,13 +120,13 @@ CREATE TABLE IF NOT EXISTS public.vehicle_types (
 );
 
 -- ==============================================================================
--- 3. DRIVER PROFILES TABLE
+-- 3. CB_DRIVER_PROFILES TABLE
 -- Dedicated details for registered drivers, vehicle specs, and live coordinates
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.driver_profiles (
+CREATE TABLE IF NOT EXISTS public.cb_driver_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE UNIQUE,
-    vehicle_type_id TEXT NOT NULL REFERENCES public.vehicle_types(id),
+    user_id TEXT NOT NULL REFERENCES public.cb_users(id) ON DELETE CASCADE UNIQUE,
+    vehicle_type_id TEXT NOT NULL REFERENCES public.cb_vehicle_types(id),
     vehicle_make TEXT NOT NULL,
     vehicle_model TEXT NOT NULL,
     vehicle_year INT NOT NULL,
@@ -148,10 +147,10 @@ CREATE TABLE IF NOT EXISTS public.driver_profiles (
 );
 
 -- ==============================================================================
--- 4. PROMO CODES TABLE
+-- 4. CB_PROMO_CODES TABLE
 -- Discounts and promotional campaigns
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.promo_codes (
+CREATE TABLE IF NOT EXISTS public.cb_promo_codes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
@@ -167,14 +166,14 @@ CREATE TABLE IF NOT EXISTS public.promo_codes (
 );
 
 -- ==============================================================================
--- 5. RIDES TABLE
+-- 5. CB_RIDES TABLE
 -- Central ride entity tracking lifecycle, routing, coordinates, multi-stops, and pricing
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.rides (
+CREATE TABLE IF NOT EXISTS public.cb_rides (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rider_id TEXT NOT NULL REFERENCES public.users(id),
-    driver_id UUID REFERENCES public.driver_profiles(id),
-    vehicle_type_id TEXT NOT NULL REFERENCES public.vehicle_types(id),
+    rider_id TEXT NOT NULL REFERENCES public.cb_users(id),
+    driver_id UUID REFERENCES public.cb_driver_profiles(id),
+    vehicle_type_id TEXT NOT NULL REFERENCES public.cb_vehicle_types(id),
     status ride_status NOT NULL DEFAULT 'REQUESTED',
     
     pickup_address TEXT NOT NULL,
@@ -185,7 +184,7 @@ CREATE TABLE IF NOT EXISTS public.rides (
     dropoff_latitude DOUBLE PRECISION NOT NULL,
     dropoff_longitude DOUBLE PRECISION NOT NULL,
     
-    stops JSONB DEFAULT '[]'::jsonb, -- Array of [{address, lat, lng, stop_order}]
+    stops JSONB DEFAULT '[]'::jsonb, -- Array of [{address, latitude, longitude, stopOrder}]
     
     distance_km NUMERIC(8, 2) NOT NULL,
     duration_min INT NOT NULL,
@@ -194,11 +193,11 @@ CREATE TABLE IF NOT EXISTS public.rides (
     time_fare NUMERIC(10, 2) NOT NULL,
     surge_multiplier NUMERIC(3, 2) DEFAULT 1.00,
     estimated_fare NUMERIC(10, 2) NOT NULL,
-    promo_code_id UUID REFERENCES public.promo_codes(id),
+    promo_code_id UUID REFERENCES public.cb_promo_codes(id),
     discount_amount NUMERIC(10, 2) DEFAULT 0.00,
     final_fare NUMERIC(10, 2),
     
-    otp VARCHAR(6), -- 4 or 6 digit ride start OTP
+    otp VARCHAR(6), -- 4-digit ride start OTP
     cancellation_reason TEXT,
     cancelled_by TEXT, -- 'rider' | 'driver' | 'system'
     cancellation_fee NUMERIC(10, 2) DEFAULT 0.00,
@@ -212,14 +211,14 @@ CREATE TABLE IF NOT EXISTS public.rides (
 );
 
 -- ==============================================================================
--- 6. PAYMENTS TABLE
+-- 6. CB_PAYMENTS TABLE
 -- Stripe integration tracking payment intents, charges, fees, and receipts
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.payments (
+CREATE TABLE IF NOT EXISTS public.cb_payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ride_id UUID NOT NULL REFERENCES public.rides(id) ON DELETE CASCADE,
-    rider_id TEXT NOT NULL REFERENCES public.users(id),
-    driver_id UUID REFERENCES public.driver_profiles(id),
+    ride_id UUID NOT NULL REFERENCES public.cb_rides(id) ON DELETE CASCADE,
+    rider_id TEXT NOT NULL REFERENCES public.cb_users(id),
+    driver_id UUID REFERENCES public.cb_driver_profiles(id),
     amount NUMERIC(10, 2) NOT NULL,
     currency VARCHAR(3) DEFAULT 'USD',
     payment_method payment_method_type NOT NULL DEFAULT 'stripe',
@@ -235,27 +234,27 @@ CREATE TABLE IF NOT EXISTS public.payments (
 );
 
 -- ==============================================================================
--- 7. REVIEWS & RATINGS TABLE
+-- 7. CB_REVIEWS & RATINGS TABLE
 -- Two-way ratings: rider rates driver, and driver rates rider
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.reviews (
+CREATE TABLE IF NOT EXISTS public.cb_reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ride_id UUID NOT NULL REFERENCES public.rides(id) ON DELETE CASCADE,
-    reviewer_id TEXT NOT NULL REFERENCES public.users(id),
-    reviewee_id TEXT NOT NULL REFERENCES public.users(id),
+    ride_id UUID NOT NULL REFERENCES public.cb_rides(id) ON DELETE CASCADE,
+    reviewer_id TEXT NOT NULL REFERENCES public.cb_users(id),
+    reviewee_id TEXT NOT NULL REFERENCES public.cb_users(id),
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ==============================================================================
--- 8. EMERGENCY SOS ALERTS TABLE
+-- 8. CB_EMERGENCY_SOS_ALERTS TABLE
 -- Instant security feature broadcasting location and notifying emergency response
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.emergency_sos_alerts (
+CREATE TABLE IF NOT EXISTS public.cb_emergency_sos_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ride_id UUID REFERENCES public.rides(id),
-    user_id TEXT NOT NULL REFERENCES public.users(id),
+    ride_id UUID REFERENCES public.cb_rides(id),
+    user_id TEXT NOT NULL REFERENCES public.cb_users(id),
     current_latitude DOUBLE PRECISION NOT NULL,
     current_longitude DOUBLE PRECISION NOT NULL,
     status sos_status NOT NULL DEFAULT 'TRIGGERED',
@@ -265,13 +264,13 @@ CREATE TABLE IF NOT EXISTS public.emergency_sos_alerts (
 );
 
 -- ==============================================================================
--- 9. SUPPORT TICKETS TABLE
+-- 9. CB_SUPPORT_TICKETS TABLE
 -- Help center and customer support management
 -- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.support_tickets (
+CREATE TABLE IF NOT EXISTS public.cb_support_tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL REFERENCES public.users(id),
-    ride_id UUID REFERENCES public.rides(id),
+    user_id TEXT NOT NULL REFERENCES public.cb_users(id),
+    ride_id UUID REFERENCES public.cb_rides(id),
     category ticket_category NOT NULL DEFAULT 'OTHER',
     subject TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -286,26 +285,26 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
 -- ==============================================================================
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 -- ==============================================================================
-CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
-CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
+CREATE INDEX IF NOT EXISTS idx_cb_users_email ON public.cb_users(email);
+CREATE INDEX IF NOT EXISTS idx_cb_users_role ON public.cb_users(role);
 
-CREATE INDEX IF NOT EXISTS idx_driver_profiles_location 
-ON public.driver_profiles(is_online, is_available, current_latitude, current_longitude);
+CREATE INDEX IF NOT EXISTS idx_cb_driver_profiles_location 
+ON public.cb_driver_profiles(is_online, is_available, current_latitude, current_longitude);
 
-CREATE INDEX IF NOT EXISTS idx_rides_rider_id ON public.rides(rider_id);
-CREATE INDEX IF NOT EXISTS idx_rides_driver_id ON public.rides(driver_id);
-CREATE INDEX IF NOT EXISTS idx_rides_status ON public.rides(status);
-CREATE INDEX IF NOT EXISTS idx_rides_created_at ON public.rides(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cb_rides_rider_id ON public.cb_rides(rider_id);
+CREATE INDEX IF NOT EXISTS idx_cb_rides_driver_id ON public.cb_rides(driver_id);
+CREATE INDEX IF NOT EXISTS idx_cb_rides_status ON public.cb_rides(status);
+CREATE INDEX IF NOT EXISTS idx_cb_rides_created_at ON public.cb_rides(created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_payments_ride_id ON public.payments(ride_id);
-CREATE INDEX IF NOT EXISTS idx_payments_stripe_intent ON public.payments(stripe_payment_intent_id);
+CREATE INDEX IF NOT EXISTS idx_cb_payments_ride_id ON public.cb_payments(ride_id);
+CREATE INDEX IF NOT EXISTS idx_cb_payments_stripe_intent ON public.cb_payments(stripe_payment_intent_id);
 
-CREATE INDEX IF NOT EXISTS idx_reviews_ride_id ON public.reviews(ride_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_id ON public.reviews(reviewee_id);
+CREATE INDEX IF NOT EXISTS idx_cb_reviews_ride_id ON public.cb_reviews(ride_id);
+CREATE INDEX IF NOT EXISTS idx_cb_reviews_reviewee_id ON public.cb_reviews(reviewee_id);
 
-CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON public.promo_codes(code);
-CREATE INDEX IF NOT EXISTS idx_sos_status ON public.emergency_sos_alerts(status);
-CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON public.support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_cb_promo_codes_code ON public.cb_promo_codes(code);
+CREATE INDEX IF NOT EXISTS idx_cb_sos_status ON public.cb_emergency_sos_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_cb_tickets_user_id ON public.cb_support_tickets(user_id);
 
 -- ==============================================================================
 -- AUTOMATIC UPDATED_AT TRIGGER FUNCTION
@@ -318,34 +317,33 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE TRIGGER set_users_timestamp
-    BEFORE UPDATE ON public.users
+CREATE OR REPLACE TRIGGER set_cb_users_timestamp
+    BEFORE UPDATE ON public.cb_users
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp_column();
 
-CREATE OR REPLACE TRIGGER set_driver_profiles_timestamp
-    BEFORE UPDATE ON public.driver_profiles
+CREATE OR REPLACE TRIGGER set_cb_driver_profiles_timestamp
+    BEFORE UPDATE ON public.cb_driver_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp_column();
 
-CREATE OR REPLACE TRIGGER set_rides_timestamp
-    BEFORE UPDATE ON public.rides
+CREATE OR REPLACE TRIGGER set_cb_rides_timestamp
+    BEFORE UPDATE ON public.cb_rides
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp_column();
 
-CREATE OR REPLACE TRIGGER set_payments_timestamp
-    BEFORE UPDATE ON public.payments
+CREATE OR REPLACE TRIGGER set_cb_payments_timestamp
+    BEFORE UPDATE ON public.cb_payments
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp_column();
 
-CREATE OR REPLACE TRIGGER set_support_tickets_timestamp
-    BEFORE UPDATE ON public.support_tickets
+CREATE OR REPLACE TRIGGER set_cb_support_tickets_timestamp
+    BEFORE UPDATE ON public.cb_support_tickets
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp_column();
 
 -- ==============================================================================
 -- HAVERSINE DISTANCE SQL HELPER (Returns distance in Kilometers)
--- Useful for SQL-side spatial lookups
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION calculate_distance_km(
     lat1 DOUBLE PRECISION,

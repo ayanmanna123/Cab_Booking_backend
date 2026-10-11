@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { supabase, supabaseAdmin } from '../config/supabase.js';
+import { DB_TABLES } from '../config/constants.js';
 
 export const requireAuth = async (req, res, next) => {
   try {
@@ -44,7 +45,7 @@ export const requireAuth = async (req, res, next) => {
     const client = supabaseAdmin || supabase;
     if (client) {
       const { data, error } = await client
-        .from('users')
+        .from(DB_TABLES.USERS)
         .select('*')
         .eq('id', userId)
         .maybeSingle();

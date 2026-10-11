@@ -1,4 +1,5 @@
 import { supabaseAdmin, supabase } from '../config/supabase.js';
+import { DB_TABLES } from '../config/constants.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory fallback cache for development/demo when Supabase credentials aren't live
@@ -23,7 +24,7 @@ export class UserService {
 
     if (client) {
       const { data, error } = await client
-        .from('users')
+        .from(DB_TABLES.USERS)
         .upsert(userData, { onConflict: 'id' })
         .select()
         .single();
@@ -51,7 +52,7 @@ export class UserService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('users')
+        .from(DB_TABLES.USERS)
         .select('*')
         .eq('id', userId)
         .maybeSingle();
@@ -79,7 +80,7 @@ export class UserService {
 
     if (client) {
       const { data, error } = await client
-        .from('users')
+        .from(DB_TABLES.USERS)
         .update(payload)
         .eq('id', userId)
         .select()

@@ -1,5 +1,6 @@
 import { supabaseAdmin, supabase } from '../config/supabase.js';
-import { calculateHaversineDistance, estimateDurationMinutes } from '../utils/geoUtils.js';
+import { DB_TABLES } from '../config/constants.js';
+import { calculateHaversineDistance, estimateDurationMinutes, getOsrmRoute } from '../utils/geoUtils.js';
 import { calculateRideFare, DEFAULT_VEHICLE_RATES } from '../utils/fareCalculator.js';
 import { PromoService } from './promo.service.js';
 
@@ -12,7 +13,7 @@ export class FareService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('vehicle_types')
+        .from(DB_TABLES.VEHICLE_TYPES)
         .select('*')
         .eq('is_active', true);
 
@@ -64,6 +65,34 @@ export class FareService {
     const durationMin = estimateDurationMinutes(totalDistanceKm);
 
     return { totalDistanceKm, durationMin };
+  }
+
+  static async getRoutePolyline({ pickupLatitude, pickupLongitude, dropoffLatitude, dropoffLongitude, stops = [] }) {
+    const coords = [
+      [pickupLongitude, pickupLatitude],
+      ...stops.map((s) => [s.longitude, s.latitude]),
+      [dropoffLongitude, dropoffLatitude]
+    ];
+
+    const osrm = await getOsrmRoute(coords);
+    if (osrm) return osrm;
+
+    const { totalDistanceKm, durationMin } = this.calculateRouteDistanceAndDuration(
+      { latitude: pickupLatitude, longitude: pickupLongitude },
+      { latitude: dropoffLatitude, longitude: dropoffLongitude },
+      stops
+    );
+
+    return {
+      distanceKm: totalDistanceKm,
+      durationMin,
+      coordinates: [
+        [pickupLatitude, pickupLongitude],
+        ...stops.map((s) => [s.latitude, s.longitude]),
+        [dropoffLatitude, dropoffLongitude]
+      ],
+      source: 'Direct_Haversine'
+    };
   }
 
   static async estimateFares({ pickupLatitude, pickupLongitude, dropoffLatitude, dropoffLongitude, stops = [], promoCode = null }) {

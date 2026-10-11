@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
-import { SOS_STATUS, SOCKET_EVENTS } from '../config/constants.js';
+import { SOS_STATUS, SOCKET_EVENTS, DB_TABLES } from '../config/constants.js';
 import { broadcastToAll } from '../sockets/socketManager.js';
 import { logger } from '../utils/logger.js';
 
@@ -29,9 +29,9 @@ export class SosService {
 
     if (client) {
       const { data, error } = await client
-        .from('emergency_sos_alerts')
+        .from(DB_TABLES.EMERGENCY_SOS_ALERTS)
         .insert(payload)
-        .select('*, users(full_name, phone, emergency_contact_name, emergency_contact_phone)')
+        .select(`*, ${DB_TABLES.USERS}(full_name, phone, emergency_contact_name, emergency_contact_phone)`)
         .single();
 
       if (error) throw new Error(error.message);
@@ -61,7 +61,7 @@ export class SosService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('emergency_sos_alerts')
+        .from(DB_TABLES.EMERGENCY_SOS_ALERTS)
         .update(updates)
         .eq('id', alertId)
         .select()
@@ -83,8 +83,8 @@ export class SosService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('emergency_sos_alerts')
-        .select('*, users(full_name, phone, emergency_contact_name, emergency_contact_phone)')
+        .from(DB_TABLES.EMERGENCY_SOS_ALERTS)
+        .select(`*, ${DB_TABLES.USERS}(full_name, phone, emergency_contact_name, emergency_contact_phone)`)
         .eq('status', SOS_STATUS.TRIGGERED)
         .order('created_at', { ascending: false });
 

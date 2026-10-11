@@ -19,4 +19,13 @@ export class FareController {
       next(err);
     }
   }
+
+  static async getRoute(req, res, next) {
+    try {
+      const route = await FareService.getRoutePolyline(req.body);
+      return ApiResponse.success(res, route, 'Leaflet route geometry retrieved');
+    } catch (err) {
+      next(err);
+    }
+  }
 }

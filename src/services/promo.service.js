@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
+import { DB_TABLES } from '../config/constants.js';
 
 const memoryPromos = new Map([
   [
@@ -41,7 +42,7 @@ export class PromoService {
 
     if (client) {
       const { data, error } = await client
-        .from('promo_codes')
+        .from(DB_TABLES.PROMO_CODES)
         .select('*')
         .eq('code', cleanCode)
         .eq('is_active', true)
@@ -101,7 +102,7 @@ export class PromoService {
     };
 
     if (client) {
-      const { data, error } = await client.from('promo_codes').insert(payload).select().single();
+      const { data, error } = await client.from(DB_TABLES.PROMO_CODES).insert(payload).select().single();
       if (error) throw new Error(error.message);
       return data;
     }

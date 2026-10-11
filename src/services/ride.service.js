@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
-import { RIDE_STATUS, SOCKET_EVENTS } from '../config/constants.js';
+import { RIDE_STATUS, SOCKET_EVENTS, DB_TABLES } from '../config/constants.js';
 import { FareService } from './fare.service.js';
 import { calculateRideFare } from '../utils/fareCalculator.js';
 import { PromoService } from './promo.service.js';
@@ -70,9 +70,9 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .insert(payload)
-        .select('*, users!rides_rider_id_fkey(full_name, phone, avatar_url, rating), vehicle_types(*)')
+        .select(`*, ${DB_TABLES.USERS}!cb_rides_rider_id_fkey(full_name, phone, avatar_url, rating), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .single();
 
       if (error) {
@@ -108,15 +108,15 @@ export class RideService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
-          driver:driver_profiles!rides_driver_id_fkey(
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude,
-            driver_user:users(full_name, phone, avatar_url)
+            driver_user:${DB_TABLES.USERS}(full_name, phone, avatar_url)
           ),
-          vehicle_types(*)
+          ${DB_TABLES.VEHICLE_TYPES}(*)
         `)
         .eq('id', rideId)
         .maybeSingle();
@@ -141,15 +141,15 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
-          driver:driver_profiles!rides_driver_id_fkey(
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude,
-            driver_user:users(full_name, phone, avatar_url)
+            driver_user:${DB_TABLES.USERS}(full_name, phone, avatar_url)
           ),
-          vehicle_types(*)
+          ${DB_TABLES.VEHICLE_TYPES}(*)
         `)
         .eq('rider_id', userId)
         .in('status', activeStatuses)
@@ -180,11 +180,11 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
-          vehicle_types(*)
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
+          ${DB_TABLES.VEHICLE_TYPES}(*)
         `)
         .eq('driver_id', driverId)
         .in('status', activeStatuses)
@@ -223,17 +223,17 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .update(updates)
         .eq('id', rideId)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
-          driver:driver_profiles!rides_driver_id_fkey(
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude,
-            driver_user:users(full_name, phone, avatar_url)
+            driver_user:${DB_TABLES.USERS}(full_name, phone, avatar_url)
           ),
-          vehicle_types(*)
+          ${DB_TABLES.VEHICLE_TYPES}(*)
         `)
         .single();
 
@@ -242,7 +242,7 @@ export class RideService {
 
       // Mark driver as occupied
       await client
-        .from('driver_profiles')
+        .from(DB_TABLES.DRIVER_PROFILES)
         .update({ is_available: false })
         .eq('id', driverId);
     } else {
@@ -279,17 +279,17 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .update(updates)
         .eq('id', rideId)
         .select(`
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
-          driver:driver_profiles!rides_driver_id_fkey(
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude,
-            driver_user:users(full_name, phone, avatar_url)
+            driver_user:${DB_TABLES.USERS}(full_name, phone, avatar_url)
           ),
-          vehicle_types(*)
+          ${DB_TABLES.VEHICLE_TYPES}(*)
         `)
         .single();
 
@@ -298,17 +298,10 @@ export class RideService {
 
       if (newStatus === RIDE_STATUS.COMPLETED && ride.driver_id) {
         // Free up driver and increment stats
-        const earnings = Math.round(Number(ride.final_fare || ride.estimated_fare) * 0.8 * 100) / 100;
-        await client.rpc('increment_driver_stats', {
-          driver_uuid: ride.driver_id,
-          fare_amount: earnings
-        }).catch(async () => {
-          // Fallback if RPC isn't loaded
-          await client
-            .from('driver_profiles')
-            .update({ is_available: true })
-            .eq('id', ride.driver_id);
-        });
+        await client
+          .from(DB_TABLES.DRIVER_PROFILES)
+          .update({ is_available: true })
+          .eq('id', ride.driver_id);
       }
     } else {
       updatedRide = { ...ride, ...updates };
@@ -354,7 +347,7 @@ export class RideService {
 
     if (client) {
       const { data, error } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .update(updates)
         .eq('id', rideId)
         .select()
@@ -365,7 +358,7 @@ export class RideService {
 
       if (ride.driver_id) {
         await client
-          .from('driver_profiles')
+          .from(DB_TABLES.DRIVER_PROFILES)
           .update({ is_available: true })
           .eq('id', ride.driver_id);
       }
@@ -387,16 +380,16 @@ export class RideService {
     const client = this.getClient();
     if (client) {
       const { data, error, count } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(
           `
           *,
-          driver:driver_profiles!rides_driver_id_fkey(
+          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
             id, vehicle_make, vehicle_model, license_plate, rating,
-            driver_user:users(full_name, avatar_url)
+            driver_user:${DB_TABLES.USERS}(full_name, avatar_url)
           ),
-          vehicle_types(*),
-          payments(*)
+          ${DB_TABLES.VEHICLE_TYPES}(*),
+          ${DB_TABLES.PAYMENTS}(*)
         `,
           { count: 'exact' }
         )
@@ -416,13 +409,13 @@ export class RideService {
     const client = this.getClient();
     if (client) {
       const { data, error, count } = await client
-        .from('rides')
+        .from(DB_TABLES.RIDES)
         .select(
           `
           *,
-          rider:users!rides_rider_id_fkey(id, full_name, avatar_url, rating),
-          vehicle_types(*),
-          payments(*)
+          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, avatar_url, rating),
+          ${DB_TABLES.VEHICLE_TYPES}(*),
+          ${DB_TABLES.PAYMENTS}(*)
         `,
           { count: 'exact' }
         )

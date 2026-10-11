@@ -18,5 +18,6 @@ export const ENV = {
   STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 
-  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || ''
+  // Mapping Provider: Leaflet + OpenStreetMap (No Google API keys needed!)
+  MAP_TILE_URL: process.env.MAP_TILE_URL || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 };

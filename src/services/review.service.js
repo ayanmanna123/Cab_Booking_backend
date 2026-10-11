@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
+import { DB_TABLES } from '../config/constants.js';
 
 const memoryReviews = new Map();
 
@@ -13,12 +14,19 @@ export class ReviewService {
     let ride = null;
 
     if (client) {
-      const { data } = await client.from('rides').select('*, driver_profiles(*)').eq('id', rideId).single();
+      const { data } = await client
+        .from(DB_TABLES.RIDES)
+        .select(`*, ${DB_TABLES.DRIVER_PROFILES}(*)`)
+        .eq('id', rideId)
+        .single();
       ride = data;
     }
 
     // Determine reviewee (if reviewer is rider, reviewee is driver's user account, and vice-versa)
-    const revieweeId = ride?.rider_id === reviewerId ? ride?.driver_profiles?.user_id || ride?.driver_id : ride?.rider_id;
+    const revieweeId =
+      ride?.rider_id === reviewerId
+        ? ride?.cb_driver_profiles?.user_id || ride?.driver_profiles?.user_id || ride?.driver_id
+        : ride?.rider_id;
 
     const payload = {
       ride_id: rideId,
@@ -30,13 +38,13 @@ export class ReviewService {
     };
 
     if (client) {
-      const { data, error } = await client.from('reviews').insert(payload).select().single();
+      const { data, error } = await client.from(DB_TABLES.REVIEWS).insert(payload).select().single();
       if (error) throw new Error(error.message);
 
       // Recalculate average rating for driver profile if applicable
       if (ride?.driver_id) {
         const { data: allReviews } = await client
-          .from('reviews')
+          .from(DB_TABLES.REVIEWS)
           .select('rating')
           .eq('reviewee_id', revieweeId);
 
@@ -44,7 +52,7 @@ export class ReviewService {
           const avg = allReviews.reduce((acc, r) => acc + r.rating, 0) / allReviews.length;
           const roundedAvg = Math.round(avg * 100) / 100;
           await client
-            .from('driver_profiles')
+            .from(DB_TABLES.DRIVER_PROFILES)
             .update({ rating: roundedAvg })
             .eq('id', ride.driver_id);
         }
@@ -63,8 +71,8 @@ export class ReviewService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('reviews')
-        .select('*, reviewer:users!reviews_reviewer_id_fkey(full_name, avatar_url)')
+        .from(DB_TABLES.REVIEWS)
+        .select(`*, reviewer:${DB_TABLES.USERS}!cb_reviews_reviewer_id_fkey(full_name, avatar_url)`)
         .eq('reviewee_id', userId)
         .order('created_at', { ascending: false });
 

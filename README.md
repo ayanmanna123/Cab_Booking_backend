@@ -108,6 +108,18 @@ cp .env.example .env
 1. Go to your [Supabase Dashboard](https://supabase.com/dashboard).
 2. Open the **SQL Editor**.
 3. Copy and run the contents of [`supabase/schema.sql`](file:///c:/Users/manna/Coding/Internship/Cab_Booking/Cab_Booking_backend/supabase/schema.sql).
+   - Creates the custom enums: `user_role`, `ride_status`, `payment_status`, `payment_method_type`, `sos_status`, etc.
+   - Creates 9 normalized tables prefixed with `cb_`:
+     - `cb_users`
+     - `cb_vehicle_types`
+     - `cb_driver_profiles`
+     - `cb_promo_codes`
+     - `cb_rides`
+     - `cb_payments`
+     - `cb_reviews`
+     - `cb_emergency_sos_alerts`
+     - `cb_support_tickets`
+   - Adds automated `updated_at` triggers and the `calculate_distance_km` Haversine function.
 4. Run the contents of [`supabase/seed.sql`](file:///c:/Users/manna/Coding/Internship/Cab_Booking/Cab_Booking_backend/supabase/seed.sql) to add vehicle tiers (UberX, Comfort, UberXL, Black) and initial promo codes.
 
 ### 4. Start Development Server
@@ -139,6 +151,7 @@ All endpoints are prefixed with `/api/v1`.
 ### 3. Fare Calculation & Tiers (`/api/v1/fares`)
 - `GET /api/v1/fares/vehicles`: Retrieve all active vehicle categories and rate cards.
 - `POST /api/v1/fares/estimate`: Estimate route distance, duration, and fares across all vehicle tiers.
+- `POST /api/v1/fares/route`: Retrieve Leaflet & OpenStreetMap (OSRM) turn-by-turn polyline coordinates for map drawing.
 
 ### 4. Driver Dashboard (`/api/v1/drivers`)
 - `POST /api/v1/drivers/register`: Register driver vehicle specs (make, model, year, license plate, color).

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
-import { TICKET_STATUS } from '../config/constants.js';
+import { TICKET_STATUS, DB_TABLES } from '../config/constants.js';
 
 const memoryTickets = new Map();
 
@@ -24,7 +24,7 @@ export class SupportService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('support_tickets')
+        .from(DB_TABLES.SUPPORT_TICKETS)
         .insert(payload)
         .select()
         .single();
@@ -43,7 +43,7 @@ export class SupportService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('support_tickets')
+        .from(DB_TABLES.SUPPORT_TICKETS)
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
@@ -69,7 +69,7 @@ export class SupportService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('support_tickets')
+        .from(DB_TABLES.SUPPORT_TICKETS)
         .update(updates)
         .eq('id', ticketId)
         .select()

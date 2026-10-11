@@ -51,6 +51,19 @@ export const TICKET_STATUS = {
   CLOSED: 'CLOSED'
 };
 
+// Database Table Names (prefixed with cb_)
+export const DB_TABLES = {
+  USERS: 'cb_users',
+  VEHICLE_TYPES: 'cb_vehicle_types',
+  DRIVER_PROFILES: 'cb_driver_profiles',
+  PROMO_CODES: 'cb_promo_codes',
+  RIDES: 'cb_rides',
+  PAYMENTS: 'cb_payments',
+  REVIEWS: 'cb_reviews',
+  EMERGENCY_SOS_ALERTS: 'cb_emergency_sos_alerts',
+  SUPPORT_TICKETS: 'cb_support_tickets'
+};
+
 export const SOCKET_EVENTS = {
   // Connection
   CONNECT: 'connect',

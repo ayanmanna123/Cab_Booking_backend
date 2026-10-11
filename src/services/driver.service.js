@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin, supabase } from '../config/supabase.js';
+import { DB_TABLES } from '../config/constants.js';
 import { calculateHaversineDistance, findNearbyDrivers } from '../utils/geoUtils.js';
 import { logger } from '../utils/logger.js';
 
@@ -29,12 +30,12 @@ export class DriverService {
 
     if (client) {
       // First ensure the user role is updated to 'driver'
-      await client.from('users').update({ role: 'driver' }).eq('id', userId);
+      await client.from(DB_TABLES.USERS).update({ role: 'driver' }).eq('id', userId);
 
       const { data, error } = await client
-        .from('driver_profiles')
+        .from(DB_TABLES.DRIVER_PROFILES)
         .upsert(payload, { onConflict: 'user_id' })
-        .select('*, users(full_name, email, phone, avatar_url), vehicle_types(*)')
+        .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .single();
 
       if (error) {
@@ -62,8 +63,8 @@ export class DriverService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('driver_profiles')
-        .select('*, users(full_name, email, phone, avatar_url), vehicle_types(*)')
+        .from(DB_TABLES.DRIVER_PROFILES)
+        .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -77,8 +78,8 @@ export class DriverService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('driver_profiles')
-        .select('*, users(full_name, email, phone, avatar_url), vehicle_types(*)')
+        .from(DB_TABLES.DRIVER_PROFILES)
+        .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .eq('id', driverId)
         .maybeSingle();
 
@@ -99,7 +100,7 @@ export class DriverService {
 
     if (client) {
       const { data, error } = await client
-        .from('driver_profiles')
+        .from(DB_TABLES.DRIVER_PROFILES)
         .update(update)
         .eq('id', driverId)
         .select()
@@ -121,7 +122,7 @@ export class DriverService {
     const client = this.getClient();
     if (client) {
       const { data, error } = await client
-        .from('driver_profiles')
+        .from(DB_TABLES.DRIVER_PROFILES)
         .update({ is_online: isOnline, updated_at: new Date().toISOString() })
         .eq('id', driverId)
         .select()
@@ -145,8 +146,8 @@ export class DriverService {
 
     if (client) {
       let query = client
-        .from('driver_profiles')
-        .select('*, users(full_name, avatar_url, phone), vehicle_types(*)')
+        .from(DB_TABLES.DRIVER_PROFILES)
+        .select(`*, ${DB_TABLES.USERS}(full_name, avatar_url, phone), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .eq('is_online', true)
         .eq('is_available', true);
 
@@ -174,8 +175,8 @@ export class DriverService {
     let recentRides = [];
     if (client) {
       const { data } = await client
-        .from('rides')
-        .select('*, users!rides_rider_id_fkey(full_name, avatar_url)')
+        .from(DB_TABLES.RIDES)
+        .select(`*, ${DB_TABLES.USERS}!cb_rides_rider_id_fkey(full_name, avatar_url)`)
         .eq('driver_id', driverId)
         .order('created_at', { ascending: false })
         .limit(10);
