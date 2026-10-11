@@ -54,13 +54,15 @@ export class DriverController {
   static async getNearbyDrivers(req, res, next) {
     try {
       const { latitude, longitude, vehicleType, radiusKm } = req.query;
+      const lat = Number(latitude) || 37.7749;
+      const lng = Number(longitude) || -122.4194;
       const drivers = await DriverService.getNearbyDrivers({
-        latitude: Number(latitude),
-        longitude: Number(longitude),
+        latitude: lat,
+        longitude: lng,
         vehicleType,
-        radiusKm: radiusKm ? Number(radiusKm) : 10
+        radiusKm: radiusKm ? Number(radiusKm) : 15
       });
-      return ApiResponse.success(res, drivers, 'Nearby drivers retrieved');
+      return ApiResponse.success(res, drivers || [], 'Nearby drivers retrieved');
     } catch (err) {
       next(err);
     }

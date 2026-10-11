@@ -41,11 +41,21 @@ export function initSocketServer(httpServer, clientUrl = '*') {
     // Live GPS Location Updates from Driver App
     socket.on(
       SOCKET_EVENTS.DRIVER_LOCATION_UPDATE,
-      async ({ driverId, latitude, longitude, heading = 0, activeRideId = null }) => {
+      async ({ driverId, latitude, longitude, heading = 0, vehicleModel = null, activeRideId = null }) => {
         try {
           if (driverId && latitude && longitude) {
             // Update in database / store
             await DriverService.updateLocation(driverId, { latitude, longitude, heading });
+
+            // Broadcast live location to riders watching the map
+            socket.broadcast.emit(SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, {
+              driverId,
+              latitude,
+              longitude,
+              heading,
+              vehicleModel,
+              timestamp: Date.now()
+            });
 
             // If driver has an ongoing ride, broadcast position directly to the rider
             if (activeRideId) {
