@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/vehicles', FareController.getVehicleTypes);
 router.post('/estimate', validateRequest(estimateFareSchema), FareController.estimateFare);
+router.post('/calculate', validateRequest(estimateFareSchema), FareController.estimateFare);
 router.post('/route', validateRequest(estimateFareSchema), FareController.getRoute);
 
 export default router;

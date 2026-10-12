@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const createPaymentIntentSchema = z.object({
   rideId: z.string().min(1, 'Ride ID is required'),
+  amount: z.number().positive().optional(),
+  currency: z.string().optional(),
   paymentMethod: z.enum(['card', 'stripe', 'cash', 'wallet']).default('stripe')
 });
 

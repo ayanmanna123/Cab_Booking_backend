@@ -10,13 +10,31 @@ const stopSchema = z.object({
 });
 
 export const estimateFareSchema = z.object({
-  pickupLatitude: coordinateSchema,
-  pickupLongitude: coordinateSchema,
-  dropoffLatitude: coordinateSchema,
-  dropoffLongitude: coordinateSchema,
+  pickupLatitude: coordinateSchema.optional(),
+  pickupLongitude: coordinateSchema.optional(),
+  dropoffLatitude: coordinateSchema.optional(),
+  dropoffLongitude: coordinateSchema.optional(),
+  pickupLat: coordinateSchema.optional(),
+  pickupLng: coordinateSchema.optional(),
+  dropoffLat: coordinateSchema.optional(),
+  dropoffLng: coordinateSchema.optional(),
   stops: z.array(stopSchema).optional().default([]),
-  promoCode: z.string().optional()
-});
+  promoCode: z.string().nullable().optional()
+}).transform((data) => ({
+  pickupLatitude: data.pickupLatitude ?? data.pickupLat,
+  pickupLongitude: data.pickupLongitude ?? data.pickupLng,
+  dropoffLatitude: data.dropoffLatitude ?? data.dropoffLat,
+  dropoffLongitude: data.dropoffLongitude ?? data.dropoffLng,
+  stops: data.stops,
+  promoCode: data.promoCode ?? undefined
+})).refine(
+  (data) =>
+    data.pickupLatitude !== undefined &&
+    data.pickupLongitude !== undefined &&
+    data.dropoffLatitude !== undefined &&
+    data.dropoffLongitude !== undefined,
+  { message: 'Valid pickup and dropoff coordinates are required' }
+);
 
 export const requestRideSchema = z.object({
   pickupAddress: z.string().min(3, 'Pickup address is required'),
