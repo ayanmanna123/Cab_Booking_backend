@@ -39,6 +39,8 @@ export class DriverService {
       current_latitude: driverData.currentLatitude || 37.7749,
       current_longitude: driverData.currentLongitude || -122.4194,
       stripe_account_id: driverData.aadhaarNumber ? `AADHAAR:${driverData.aadhaarNumber}` : null,
+      upi_id: driverData.upiId || driverData.upi_id || null,
+      payout_method: driverData.payoutMethod || driverData.payout_method || 'UPI',
       updated_at: new Date().toISOString()
     };
 
@@ -66,12 +68,25 @@ export class DriverService {
         .from(DB_TABLES.USERS)
         .upsert(userUpdatePayload, { onConflict: 'id' });
 
-      // 2. Upsert driver profile in cb_driver_profiles
-      const { data, error } = await client
+      // 2. Upsert driver profile in cb_driver_profiles (with column fallback if table not yet migrated)
+      let dbPayload = { ...payload };
+      let { data, error } = await client
         .from(DB_TABLES.DRIVER_PROFILES)
-        .upsert(payload, { onConflict: 'user_id' })
+        .upsert(dbPayload, { onConflict: 'user_id' })
         .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .single();
+
+      if (error && error.message && (error.message.includes('upi_id') || error.message.includes('payout_method'))) {
+        delete dbPayload.upi_id;
+        delete dbPayload.payout_method;
+        const retry = await client
+          .from(DB_TABLES.DRIVER_PROFILES)
+          .upsert(dbPayload, { onConflict: 'user_id' })
+          .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) {
         logger.error('Error registering driver in Supabase:', error);
