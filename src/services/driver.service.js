@@ -32,7 +32,7 @@ export class DriverService {
       vehicle_make: driverData.vehicleMake || driverData.vehicle_make || 'Toyota',
       vehicle_model: driverData.vehicleModel || driverData.vehicle_model || 'Camry',
       vehicle_year: Number(driverData.vehicleYear || driverData.vehicle_year) || new Date().getFullYear(),
-      license_plate: driverData.licensePlate || driverData.license_plate || 'DL 01 AB 1234',
+      license_plate: driverData.licensePlate || driverData.license_plate || `MH ${Math.floor(10 + Math.random() * 89)} CZ ${Math.floor(1000 + Math.random() * 8999)}`,
       vehicle_color: driverData.vehicleColor || driverData.vehicle_color || 'Silver',
       is_online: false,
       is_available: true,
@@ -122,35 +122,62 @@ export class DriverService {
   static async getDriverByUserId(userId) {
     const client = this.getClient();
     if (client) {
-      const { data, error } = await client
+      let { data, error } = await client
         .from(DB_TABLES.DRIVER_PROFILES)
         .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) throw new Error(error.message);
-      if (!data) return null;
+      if (!data) {
+        // Auto-provision a driver profile for the user in cb_driver_profiles so any driver account can accept rides
+        const autoPayload = {
+          user_id: userId,
+          vehicle_type_id: 'economy',
+          vehicle_make: 'Toyota',
+          vehicle_model: 'Camry',
+          vehicle_year: 2024,
+          license_plate: `MH ${Math.floor(10 + Math.random() * 89)} CZ ${Math.floor(1000 + Math.random() * 8999)}`,
+          vehicle_color: 'Silver Metallic',
+          is_online: true,
+          is_available: true,
+          current_latitude: 22.5726,
+          current_longitude: 88.3639,
+          updated_at: new Date().toISOString()
+        };
 
-      const user = data.cb_users || {};
-      const vehicleType = data.cb_vehicle_types || {};
-      return {
-        ...data,
-        fullName: user.full_name || 'Driver Partner',
-        phone: user.phone || '',
-        email: user.email || '',
-        vehicleMake: data.vehicle_make || 'Toyota',
-        vehicleModel: data.vehicle_model || 'Camry',
-        vehicleYear: data.vehicle_year || 2024,
-        vehicleColor: data.vehicle_color || 'Silver',
-        licensePlate: data.license_plate || 'DL 01 AB 1234',
-        vehicleTypeId: data.vehicle_type_id || 'economy',
-        vehicleTierName: vehicleType.name || 'UberX',
-        carImageUrl: data.car_image_url || user.avatar_url || 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png',
-        aadhaarNumber: data.stripe_account_id?.replace('AADHAAR:', '') || '',
-        drivingLicense: data.driving_license || '',
-        payoutMethod: data.payout_method || 'UPI',
-        upiId: data.upi_id || ''
-      };
+        const { data: created } = await client
+          .from(DB_TABLES.DRIVER_PROFILES)
+          .upsert(autoPayload, { onConflict: 'user_id' })
+          .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
+          .maybeSingle();
+
+        if (created) {
+          data = created;
+        }
+      }
+
+      if (data) {
+        const user = data.cb_users || {};
+        const vehicleType = data.cb_vehicle_types || {};
+        return {
+          ...data,
+          fullName: user.full_name || 'Driver Partner',
+          phone: user.phone || '',
+          email: user.email || '',
+          vehicleMake: data.vehicle_make || 'Toyota',
+          vehicleModel: data.vehicle_model || 'Camry',
+          vehicleYear: data.vehicle_year || 2024,
+          vehicleColor: data.vehicle_color || 'Silver',
+          licensePlate: data.license_plate || 'DL 01 AB 1234',
+          vehicleTypeId: data.vehicle_type_id || 'economy',
+          vehicleTierName: vehicleType.name || 'UberX',
+          carImageUrl: data.car_image_url || user.avatar_url || 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png',
+          aadhaarNumber: data.stripe_account_id?.replace('AADHAAR:', '') || '',
+          drivingLicense: data.driving_license || '',
+          payoutMethod: data.payout_method || 'UPI',
+          upiId: data.upi_id || ''
+        };
+      }
     }
     return memoryDrivers.get(`user_${userId}`) || null;
   }
@@ -158,16 +185,25 @@ export class DriverService {
   static async getDriverById(driverId) {
     const client = this.getClient();
     if (client) {
-      const { data, error } = await client
+      let { data } = await client
         .from(DB_TABLES.DRIVER_PROFILES)
         .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
         .eq('id', driverId)
         .maybeSingle();
 
-      if (error) throw new Error(error.message);
-      return data;
+      if (!data) {
+        // Fallback: check by user_id
+        const { data: byUser } = await client
+          .from(DB_TABLES.DRIVER_PROFILES)
+          .select(`*, ${DB_TABLES.USERS}(full_name, email, phone, avatar_url), ${DB_TABLES.VEHICLE_TYPES}(*)`)
+          .eq('user_id', driverId)
+          .maybeSingle();
+        if (byUser) data = byUser;
+      }
+
+      if (data) return data;
     }
-    return memoryDrivers.get(driverId) || null;
+    return memoryDrivers.get(driverId) || memoryDrivers.get(`user_${driverId}`) || null;
   }
 
   static async updateLocation(driverId, { latitude, longitude, heading = 0 }) {

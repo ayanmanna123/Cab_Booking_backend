@@ -82,18 +82,24 @@ export const SOCKET_EVENTS = {
   RIDE_NEW_OFFER: 'ride:new_offer',
   RIDE_ACCEPT: 'ride:accept',
   RIDE_ACCEPTED: 'ride:accepted',
+  RIDE_UNAVAILABLE: 'ride:unavailable',
   RIDE_DECLINE: 'ride:decline',
+  RIDE_REJECTED: 'ride:rejected',
   RIDE_DRIVER_ARRIVING: 'ride:driver_arriving',
   RIDE_DRIVER_ARRIVED: 'ride:driver_arrived',
+  RIDE_ARRIVED: 'ride:arrived',
   RIDE_START: 'ride:start',
   RIDE_STARTED: 'ride:started',
   RIDE_COMPLETE: 'ride:complete',
   RIDE_COMPLETED: 'ride:completed',
   RIDE_CANCEL: 'ride:cancel',
   RIDE_CANCELLED: 'ride:cancelled',
+  RIDE_STATUS_CHANGE: 'ride:status_change',
+  RIDE_ERROR: 'ride:error',
 
   // Live GPS Tracking during ride
   RIDE_TRACK_LOCATION: 'ride:track_location',
+  RIDE_LOCATION_UPDATED: 'ride:location_updated',
 
   // SOS & Emergency
   SOS_TRIGGER: 'sos:trigger',

@@ -1,4 +1,5 @@
 import { DriverService } from '../services/driver.service.js';
+import { RideService } from '../services/ride.service.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 
 export class DriverController {
@@ -44,8 +45,30 @@ export class DriverController {
         return ApiResponse.notFound(res, 'Driver profile not found');
       }
 
-      const updated = await DriverService.toggleOnlineStatus(driver.id, req.body.isOnline);
-      return ApiResponse.success(res, updated, `Driver is now ${req.body.isOnline ? 'ONLINE' : 'OFFLINE'}`);
+      const isOnline = req.body.isOnline !== undefined ? Boolean(req.body.isOnline) : Boolean(req.body.available);
+      const updated = await DriverService.toggleOnlineStatus(driver.id, isOnline);
+      return ApiResponse.success(res, updated, `Driver is now ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async respondToRide(req, res, next) {
+    try {
+      const { rideId } = req.params;
+      const { action } = req.body;
+      const driver = await DriverService.getDriverByUserId(req.user.id);
+      if (!driver) {
+        return ApiResponse.forbidden(res, 'Driver profile not registered');
+      }
+
+      if (action === 'ACCEPT') {
+        const accepted = await RideService.acceptRide(rideId, driver.id);
+        return ApiResponse.success(res, accepted, 'Ride accepted successfully');
+      } else {
+        const rejected = await RideService.rejectRide(rideId, driver.id);
+        return ApiResponse.success(res, rejected, 'Ride rejected');
+      }
     } catch (err) {
       next(err);
     }

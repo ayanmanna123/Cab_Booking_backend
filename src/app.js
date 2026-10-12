@@ -42,6 +42,7 @@ app.use('/api', apiRateLimiter);
 
 // Mount API routes
 app.use('/api/v1', apiRoutes);
+app.use('/api', apiRoutes);
 
 // Root route
 app.get('/', (req, res) => {

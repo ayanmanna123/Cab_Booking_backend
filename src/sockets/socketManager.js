@@ -89,6 +89,30 @@ export function initSocketServer(httpServer, clientUrl = '*') {
       }
     });
 
+    // Handle Ride Status Change broadcast across ride room
+    socket.on('ride:status_change', (data) => {
+      if (data?.rideId) {
+        io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_STATUS_CHANGE, data);
+        io.emit(SOCKET_EVENTS.RIDE_STATUS_CHANGE, data);
+        io.emit(SOCKET_EVENTS.RIDE_ACCEPTED, data);
+        io.emit('ride:accepted', data);
+        io.emit('ride:accept', data.driver || data);
+        const st = (data.status || '').toUpperCase();
+        if (st === 'ACCEPTED') {
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_ACCEPTED, data);
+        } else if (st === 'ARRIVED') {
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_ARRIVED, data);
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_DRIVER_ARRIVED, data);
+        } else if (st === 'IN_PROGRESS') {
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_STARTED, data);
+        } else if (st === 'COMPLETED') {
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_COMPLETED, data);
+        } else if (st === 'CANCELLED') {
+          io.to(`ride:${data.rideId}`).emit(SOCKET_EVENTS.RIDE_CANCELLED, data);
+        }
+      }
+    });
+
     // Disconnect Cleanup
     socket.on('disconnect', () => {
       for (const [userId, sockId] of userSockets.entries()) {
@@ -114,8 +138,14 @@ export function emitToUser(userId, event, data) {
   }
 }
 
+export function emitToRideRoom(rideId, event, data) {
+  if (io && rideId) {
+    io.to(`ride:${rideId}`).emit(event, data);
+  }
+}
+
 export function emitToDriver(driverId, event, data) {
-  if (io) {
+  if (io && driverId) {
     io.to(`driver:${driverId}`).emit(event, data);
   }
 }

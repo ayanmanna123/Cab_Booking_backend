@@ -47,3 +47,11 @@ export const updateRideStatusSchema = z.object({
 export const cancelRideSchema = z.object({
   reason: z.string().min(3, 'Cancellation reason is required')
 });
+
+export const verifyPinSchema = z.object({
+  pin: z.string().min(4).max(6).optional(),
+  otp: z.string().min(4).max(6).optional()
+}).refine((data) => data.pin || data.otp, {
+  message: 'A 4-digit verification PIN is required'
+});
+
