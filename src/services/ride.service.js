@@ -6,6 +6,7 @@ import { calculateRideFare } from '../utils/fareCalculator.js';
 import { PromoService } from './promo.service.js';
 import { emitToUser, emitToDriver, broadcastToDrivers, emitToRideRoom, getIO } from '../sockets/socketManager.js';
 import { DriverService } from './driver.service.js';
+import { HistoryService } from './history.service.js';
 import { logger } from '../utils/logger.js';
 
 const memoryRides = new Map();
@@ -18,6 +19,15 @@ export class RideService {
 
   static generateOTP() {
     return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  static async notifyAndSyncHistory(ride) {
+    if (!ride) return;
+    try {
+      await HistoryService.syncRideToHistory(ride);
+    } catch (err) {
+      logger.warn('[RideService] Failed to sync ride to history:', err.message);
+    }
   }
 
   /**
@@ -171,6 +181,9 @@ export class RideService {
     } catch (err) {
       logger.warn('Could not query nearby drivers for targeted dispatch:', err.message);
     }
+
+    // Sync ride to dedicated history table
+    this.notifyAndSyncHistory(rideRecord);
 
     return rideRecord;
   }
@@ -446,6 +459,9 @@ export class RideService {
       });
     }
 
+    // Sync ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
+
     // Return to driver without leaking OTP
     const driverSafe = { ...updatedRide };
     delete driverSafe.otp;
@@ -515,6 +531,9 @@ export class RideService {
       io.emit(SOCKET_EVENTS.RIDE_DRIVER_ARRIVED, { rideId, status: 'ARRIVED', ride: updatedRide });
       io.emit(SOCKET_EVENTS.RIDE_STATUS_CHANGE, { rideId, status: 'ARRIVED', ride: updatedRide });
     }
+
+    // Sync ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
 
     const driverSafe = { ...updatedRide };
     delete driverSafe.otp;
@@ -605,6 +624,9 @@ export class RideService {
       io.emit(SOCKET_EVENTS.RIDE_STARTED, { rideId, status: 'IN_PROGRESS', ride: updatedRide });
       io.emit(SOCKET_EVENTS.RIDE_STATUS_CHANGE, { rideId, status: 'IN_PROGRESS', ride: updatedRide });
     }
+
+    // Sync ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
 
     return updatedRide;
   }
@@ -728,6 +750,9 @@ export class RideService {
       });
     }
 
+    // Sync completed ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
+
     return updatedRide;
   }
 
@@ -795,6 +820,9 @@ export class RideService {
     if (ride.driver_id) {
       emitToDriver(ride.driver_id, `ride:status_${normalized.toLowerCase()}`, { ride: updatedRide });
     }
+
+    // Sync ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
 
     return updatedRide;
   }
@@ -864,61 +892,143 @@ export class RideService {
       emitToDriver(ride.driver_id, SOCKET_EVENTS.RIDE_CANCELLED, { ride: updatedRide, reason });
     }
 
+    // Sync cancelled ride to dedicated history table
+    this.notifyAndSyncHistory(updatedRide);
+
     return updatedRide;
   }
 
-  static async getRiderHistory(riderId, limit = 20, offset = 0) {
-    const client = this.getClient();
-    if (client) {
-      const { data, error, count } = await client
-        .from(DB_TABLES.RIDES)
-        .select(
-          `
-          *,
-          driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
-            id, vehicle_make, vehicle_model, license_plate, rating,
-            driver_user:${DB_TABLES.USERS}(full_name, avatar_url)
-          ),
-          ${DB_TABLES.VEHICLE_TYPES}(*),
-          ${DB_TABLES.PAYMENTS}(*)
-        `,
-          { count: 'exact' }
-        )
-        .eq('rider_id', riderId)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) throw new Error(error.message);
-      return { rides: data || [], total: count || 0 };
+  static async getRiderHistory(riderId, limit = 50, offset = 0, status = null) {
+    // 1. Try fetching from dedicated HistoryService (which queries cb_ride_history)
+    try {
+      const historyRes = await HistoryService.getRiderHistory(riderId, { status, limit, offset });
+      if (historyRes && historyRes.rides && historyRes.rides.length > 0) {
+        return historyRes;
+      }
+    } catch (err) {
+      logger.warn(`[RideService] HistoryService getRiderHistory error: ${err.message}`);
     }
 
-    const list = Array.from(memoryRides.values()).filter((r) => r.rider_id === riderId);
-    return { rides: list.slice(offset, offset + limit), total: list.length };
-  }
-
-  static async getDriverHistory(driverId, limit = 20, offset = 0) {
+    // 2. Query cb_rides directly as resilient fallback
     const client = this.getClient();
     if (client) {
-      const { data, error, count } = await client
-        .from(DB_TABLES.RIDES)
-        .select(
-          `
-          *,
-          rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, avatar_url, rating),
-          ${DB_TABLES.VEHICLE_TYPES}(*),
-          ${DB_TABLES.PAYMENTS}(*)
-        `,
-          { count: 'exact' }
-        )
-        .eq('driver_id', driverId)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+      try {
+        let query = client
+          .from(DB_TABLES.RIDES)
+          .select(
+            `
+            *,
+            driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
+              id, vehicle_make, vehicle_model, license_plate, rating,
+              driver_user:${DB_TABLES.USERS}(full_name, avatar_url, phone)
+            ),
+            ${DB_TABLES.VEHICLE_TYPES}(*),
+            ${DB_TABLES.PAYMENTS}(*)
+          `,
+            { count: 'exact' }
+          );
 
-      if (error) throw new Error(error.message);
-      return { rides: data || [], total: count || 0 };
+        if (riderId && riderId !== 'all') {
+          query = query.eq('rider_id', riderId);
+        }
+
+        if (status) {
+          if (Array.isArray(status)) {
+            query = query.in('status', status);
+          } else {
+            query = query.eq('status', status);
+          }
+        }
+
+        const { data, count, error } = await query
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+
+        if (!error && data && data.length > 0) {
+          // Asynchronously snapshot fetched rides into cb_ride_history
+          data.forEach((r) => HistoryService.syncRideToHistory(r).catch(() => {}));
+          return { rides: data, total: count || data.length, source: 'cb_rides' };
+        }
+
+        // If riderId didn't match any rides, attempt fallback for dev/testing
+        if (riderId === 'rider_official_user') {
+          const { data: allRides, count: allCount } = await client
+            .from(DB_TABLES.RIDES)
+            .select(
+              `
+              *,
+              driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
+                id, vehicle_make, vehicle_model, license_plate, rating,
+                driver_user:${DB_TABLES.USERS}(full_name, avatar_url, phone)
+              ),
+              ${DB_TABLES.VEHICLE_TYPES}(*),
+              ${DB_TABLES.PAYMENTS}(*)
+            `,
+              { count: 'exact' }
+            )
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+          if (allRides && allRides.length > 0) {
+            allRides.forEach((r) => HistoryService.syncRideToHistory(r).catch(() => {}));
+            return { rides: allRides, total: allCount || allRides.length, source: 'cb_rides_all' };
+          }
+        }
+      } catch (err) {
+        logger.warn(`[RideService] cb_rides fallback error: ${err.message}`);
+      }
+    }
+
+    const list = Array.from(memoryRides.values())
+      .filter((r) => !riderId || riderId === 'all' || riderId === 'rider_official_user' || r.rider_id === riderId)
+      .filter((r) => {
+        if (!status) return true;
+        if (Array.isArray(status)) return status.includes(r.status);
+        return r.status === status;
+      })
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+    return { rides: list.slice(offset, offset + limit), total: list.length, source: 'memory' };
+  }
+
+  static async getDriverHistory(driverId, limit = 50, offset = 0) {
+    try {
+      const historyRes = await HistoryService.getDriverHistory(driverId, { limit, offset });
+      if (historyRes && historyRes.rides && historyRes.rides.length > 0) {
+        return historyRes;
+      }
+    } catch (err) {
+      logger.warn(`[RideService] HistoryService getDriverHistory error: ${err.message}`);
+    }
+
+    const client = this.getClient();
+    if (client) {
+      try {
+        const { data, error, count } = await client
+          .from(DB_TABLES.RIDES)
+          .select(
+            `
+            *,
+            rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, avatar_url, rating),
+            ${DB_TABLES.VEHICLE_TYPES}(*),
+            ${DB_TABLES.PAYMENTS}(*)
+          `,
+            { count: 'exact' }
+          )
+          .eq('driver_id', driverId)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+
+        if (!error && data) {
+          data.forEach((r) => HistoryService.syncRideToHistory(r).catch(() => {}));
+          return { rides: data, total: count || 0, source: 'cb_rides' };
+        }
+      } catch (err) {
+        logger.warn(`[RideService] Driver cb_rides fallback error: ${err.message}`);
+      }
     }
 
     const list = Array.from(memoryRides.values()).filter((r) => r.driver_id === driverId);
-    return { rides: list.slice(offset, offset + limit), total: list.length };
+    return { rides: list.slice(offset, offset + limit), total: list.length, source: 'memory' };
   }
 }

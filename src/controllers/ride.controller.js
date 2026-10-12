@@ -231,6 +231,8 @@ export class RideController {
       const limit = Number(req.query.limit) || 20;
       const offset = Number(req.query.offset) || 0;
 
+      const status = req.query.status || null;
+
       if (req.user.role === 'driver') {
         const driver = await DriverService.getDriverByUserId(req.user.id);
         if (driver) {
@@ -239,7 +241,7 @@ export class RideController {
         }
       }
 
-      const history = await RideService.getRiderHistory(req.user.id, limit, offset);
+      const history = await RideService.getRiderHistory(req.user.id, limit, offset, status);
       return ApiResponse.success(res, history, 'Rider ride history retrieved');
     } catch (err) {
       next(err);
@@ -253,7 +255,8 @@ export class RideController {
     try {
       const limit = Number(req.query.limit) || 20;
       const offset = Number(req.query.offset) || 0;
-      const history = await RideService.getRiderHistory(req.user.id, limit, offset);
+      const status = req.query.status || null;
+      const history = await RideService.getRiderHistory(req.user.id, limit, offset, status);
       return ApiResponse.success(res, history, 'Rider ride history retrieved');
     } catch (err) {
       next(err);

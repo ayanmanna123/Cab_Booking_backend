@@ -61,7 +61,8 @@ export const DB_TABLES = {
   PAYMENTS: 'cb_payments',
   REVIEWS: 'cb_reviews',
   EMERGENCY_SOS_ALERTS: 'cb_emergency_sos_alerts',
-  SUPPORT_TICKETS: 'cb_support_tickets'
+  SUPPORT_TICKETS: 'cb_support_tickets',
+  RIDE_HISTORY: 'cb_ride_history'
 };
 
 export const SOCKET_EVENTS = {
