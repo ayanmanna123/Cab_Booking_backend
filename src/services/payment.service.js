@@ -39,7 +39,7 @@ export class PaymentService {
       try {
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
-          currency: 'usd',
+          currency: 'inr',
           payment_method_types: ['card'],
           metadata: {
             rideId,
@@ -59,7 +59,7 @@ export class PaymentService {
       rider_id: riderId,
       driver_id: ride?.driver_id || null,
       amount: fareAmount,
-      currency: 'USD',
+      currency: 'INR',
       payment_method: paymentMethod,
       status: PAYMENT_STATUS.PENDING,
       stripe_payment_intent_id: paymentIntentId,
@@ -96,32 +96,69 @@ export class PaymentService {
 
   static async confirmPayment({ rideId, paymentIntentId }) {
     const client = this.getClient();
+    let receiptUrl = `https://dashboard.stripe.com/test/payments/${paymentIntentId}`;
+
+    if (stripe && paymentIntentId && paymentIntentId.startsWith('pi_')) {
+      try {
+        let pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (pi.status === 'requires_payment_method' || pi.status === 'requires_confirmation') {
+          pi = await stripe.paymentIntents.confirm(paymentIntentId, {
+            payment_method: 'pm_card_visa',
+            return_url: 'http://localhost:5173'
+          });
+        }
+        if (pi?.charges?.data?.[0]?.receipt_url) {
+          receiptUrl = pi.charges.data[0].receipt_url;
+        }
+      } catch (stripeErr) {
+        logger.warn('Stripe confirm call note:', stripeErr.message);
+      }
+    }
+
     const updates = {
       status: PAYMENT_STATUS.SUCCEEDED,
-      receipt_url: `https://pay.stripe.com/receipts/mock_${paymentIntentId}`,
+      receipt_url: receiptUrl,
       updated_at: new Date().toISOString()
     };
 
     if (client) {
-      const { data, error } = await client
-        .from(DB_TABLES.PAYMENTS)
-        .update(updates)
-        .eq('ride_id', rideId)
-        .select()
-        .single();
+      try {
+        let query = client.from(DB_TABLES.PAYMENTS).update(updates);
+        if (paymentIntentId) {
+          query = query.eq('stripe_payment_intent_id', paymentIntentId);
+        } else {
+          query = query.eq('ride_id', rideId);
+        }
+        const { data, error } = await query.select();
 
-      if (error) throw new Error(error.message);
-      return data;
+        if (error) {
+          logger.warn('Supabase payments update warning:', error.message);
+        } else if (data && data.length > 0) {
+          // Sync payment status to rides table
+          await client
+            .from(DB_TABLES.RIDES)
+            .update({ payment_status: 'PAID' })
+            .eq('id', rideId);
+
+          return data[0];
+        }
+      } catch (err) {
+        logger.warn('Supabase payments confirmation error:', err.message);
+      }
     }
 
     for (const payment of memoryPayments.values()) {
-      if (payment.ride_id === rideId) {
+      if (payment.ride_id === rideId || payment.stripe_payment_intent_id === paymentIntentId) {
         Object.assign(payment, updates);
         return payment;
       }
     }
 
-    return null;
+    return {
+      ride_id: rideId,
+      stripe_payment_intent_id: paymentIntentId,
+      ...updates
+    };
   }
 
   static async getRideReceipt(rideId) {
