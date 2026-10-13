@@ -13,6 +13,8 @@ const router = Router();
 
 router.post('/register', requireAuth, validateRequest(registerDriverSchema), DriverController.registerDriver);
 router.get('/me', requireAuth, DriverController.getMyProfile);
+router.patch('/payout', requireAuth, DriverController.updatePayout);
+router.put('/payout', requireAuth, DriverController.updatePayout);
 
 // Driver availability status routes
 router.patch('/availability', requireAuth, DriverController.toggleOnlineStatus);

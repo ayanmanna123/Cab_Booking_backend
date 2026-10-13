@@ -26,49 +26,79 @@ export class DriverService {
     };
     const vehicleTypeId = vehicleTierMap[(driverData.vehicleTypeId || 'economy').toLowerCase()] || 'economy';
 
-    const payload = {
-      user_id: userId,
-      vehicle_type_id: vehicleTypeId,
-      vehicle_make: driverData.vehicleMake || driverData.vehicle_make || 'Toyota',
-      vehicle_model: driverData.vehicleModel || driverData.vehicle_model || 'Camry',
-      vehicle_year: Number(driverData.vehicleYear || driverData.vehicle_year) || new Date().getFullYear(),
-      license_plate: driverData.licensePlate || driverData.license_plate || `MH ${Math.floor(10 + Math.random() * 89)} CZ ${Math.floor(1000 + Math.random() * 8999)}`,
-      vehicle_color: driverData.vehicleColor || driverData.vehicle_color || 'Silver',
-      is_online: false,
-      is_available: true,
-      current_latitude: driverData.currentLatitude || 37.7749,
-      current_longitude: driverData.currentLongitude || -122.4194,
-      stripe_account_id: driverData.aadhaarNumber ? `AADHAAR:${driverData.aadhaarNumber}` : null,
-      upi_id: driverData.upiId || driverData.upi_id || null,
-      payout_method: driverData.payoutMethod || driverData.payout_method || 'UPI',
-      updated_at: new Date().toISOString()
-    };
+    let effectiveUserId = userId;
 
     if (client) {
-      // 1. Ensure user exists and update profile in cb_users
-      const { data: existingUser } = await client
-        .from(DB_TABLES.USERS)
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // 1. Resolve user in cb_users by ID or by email to ensure valid foreign key
+      let existingUser = null;
+      if (effectiveUserId && effectiveUserId !== 'driver_partner_official') {
+        const { data: userById } = await client
+          .from(DB_TABLES.USERS)
+          .select('*')
+          .eq('id', effectiveUserId)
+          .maybeSingle();
+        if (userById) existingUser = userById;
+      }
+
+      // Fallback check by email if user not found by ID
+      if (!existingUser && driverData.email) {
+        const { data: userByEmail } = await client
+          .from(DB_TABLES.USERS)
+          .select('*')
+          .eq('email', driverData.email)
+          .maybeSingle();
+        if (userByEmail) {
+          existingUser = userByEmail;
+          effectiveUserId = userByEmail.id;
+        }
+      }
+
+      // If still no user exists, provision one with effectiveUserId
+      if (!existingUser) {
+        effectiveUserId = effectiveUserId && effectiveUserId !== 'driver_partner_official'
+          ? effectiveUserId
+          : `driver_${Date.now()}`;
+      }
 
       const userUpdatePayload = {
-        id: userId,
+        id: effectiveUserId,
         full_name: driverData.fullName || driverData.full_name || existingUser?.full_name || 'Uber Driver',
         phone: driverData.phone || existingUser?.phone || null,
         avatar_url: driverData.carImageUrl || driverData.car_image_url || existingUser?.avatar_url || 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png',
         role: 'driver',
         emergency_contact_name: driverData.emergencyContactName || existingUser?.emergency_contact_name || null,
         emergency_contact_phone: driverData.emergencyContactPhone || existingUser?.emergency_contact_phone || null,
-        email: existingUser?.email || driverData.email || `${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`,
+        email: existingUser?.email || driverData.email || `${effectiveUserId.replace(/[^a-zA-Z0-9_-]/g, '_')}@uberclone.local`,
         updated_at: new Date().toISOString()
       };
 
-      await client
+      const { error: userUpsertErr } = await client
         .from(DB_TABLES.USERS)
         .upsert(userUpdatePayload, { onConflict: 'id' });
 
-      // 2. Upsert driver profile in cb_driver_profiles (with column fallback if table not yet migrated)
+      if (userUpsertErr) {
+        logger.warn('User upsert notice in cb_users:', userUpsertErr.message);
+      }
+
+      const payload = {
+        user_id: effectiveUserId,
+        vehicle_type_id: vehicleTypeId,
+        vehicle_make: driverData.vehicleMake || driverData.vehicle_make || 'Toyota',
+        vehicle_model: driverData.vehicleModel || driverData.vehicle_model || 'Camry',
+        vehicle_year: Number(driverData.vehicleYear || driverData.vehicle_year) || new Date().getFullYear(),
+        license_plate: driverData.licensePlate || driverData.license_plate || `MH ${Math.floor(10 + Math.random() * 89)} CZ ${Math.floor(1000 + Math.random() * 8999)}`,
+        vehicle_color: driverData.vehicleColor || driverData.vehicle_color || 'Silver',
+        is_online: false,
+        is_available: true,
+        current_latitude: driverData.currentLatitude || 37.7749,
+        current_longitude: driverData.currentLongitude || -122.4194,
+        stripe_account_id: driverData.aadhaarNumber ? `AADHAAR:${driverData.aadhaarNumber}` : null,
+        upi_id: driverData.upiId || driverData.upi_id || null,
+        payout_method: driverData.payoutMethod || driverData.payout_method || 'UPI',
+        updated_at: new Date().toISOString()
+      };
+
+      // 2. Upsert driver profile in cb_driver_profiles
       let dbPayload = { ...payload };
       let { data, error } = await client
         .from(DB_TABLES.DRIVER_PROFILES)
@@ -116,6 +146,24 @@ export class DriverService {
         rating: 5.0
       };
     }
+
+    const payload = {
+      user_id: effectiveUserId,
+      vehicle_type_id: vehicleTypeId,
+      vehicle_make: driverData.vehicleMake || driverData.vehicle_make || 'Toyota',
+      vehicle_model: driverData.vehicleModel || driverData.vehicle_model || 'Camry',
+      vehicle_year: Number(driverData.vehicleYear || driverData.vehicle_year) || new Date().getFullYear(),
+      license_plate: driverData.licensePlate || driverData.license_plate || `MH ${Math.floor(10 + Math.random() * 89)} CZ ${Math.floor(1000 + Math.random() * 8999)}`,
+      vehicle_color: driverData.vehicleColor || driverData.vehicle_color || 'Silver',
+      is_online: false,
+      is_available: true,
+      current_latitude: driverData.currentLatitude || 37.7749,
+      current_longitude: driverData.currentLongitude || -122.4194,
+      stripe_account_id: driverData.aadhaarNumber ? `AADHAAR:${driverData.aadhaarNumber}` : null,
+      upi_id: driverData.upiId || driverData.upi_id || null,
+      payout_method: driverData.payoutMethod || driverData.payout_method || 'UPI',
+      updated_at: new Date().toISOString()
+    };
 
     const driverId = crypto.randomUUID();
     const saved = {
@@ -195,6 +243,27 @@ export class DriverService {
       }
     }
     return memoryDrivers.get(`user_${userId}`) || null;
+  }
+
+  static async updatePayoutMethod(userId, { payoutMethod = 'UPI', upiId = '' }) {
+    const client = this.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from(DB_TABLES.DRIVER_PROFILES)
+        .update({
+          payout_method: payoutMethod,
+          upi_id: upiId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .maybeSingle();
+      if (error) {
+        logger.error('Error updating payout method in Supabase:', error);
+      }
+      return data;
+    }
+    return null;
   }
 
   static async getDriverById(driverId) {

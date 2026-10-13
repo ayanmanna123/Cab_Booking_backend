@@ -5,8 +5,20 @@ import { ApiResponse } from '../utils/apiResponse.js';
 export class DriverController {
   static async registerDriver(req, res, next) {
     try {
-      const driver = await DriverService.registerDriver(req.user.id, req.body);
+      const targetUserId = req.body.userId || req.user.id;
+      const driver = await DriverService.registerDriver(targetUserId, req.body);
       return ApiResponse.created(res, driver, 'Driver registered successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updatePayout(req, res, next) {
+    try {
+      const targetUserId = req.body.userId || req.user.id;
+      const { payoutMethod, upiId } = req.body;
+      const driver = await DriverService.updatePayoutMethod(targetUserId, { payoutMethod, upiId });
+      return ApiResponse.success(res, driver, 'Payout details updated');
     } catch (err) {
       next(err);
     }
