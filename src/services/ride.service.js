@@ -372,7 +372,7 @@ export class RideService {
           *,
           rider:${DB_TABLES.USERS}!cb_rides_rider_id_fkey(id, full_name, phone, avatar_url, rating),
           driver:${DB_TABLES.DRIVER_PROFILES}!cb_rides_driver_id_fkey(
-            id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude, upi_id,
+            id, user_id, vehicle_make, vehicle_model, vehicle_color, license_plate, rating, current_latitude, current_longitude, upi_id, stripe_account_id,
             driver_user:${DB_TABLES.USERS}(full_name, phone, avatar_url)
           ),
           ${DB_TABLES.VEHICLE_TYPES}(*)
@@ -406,13 +406,18 @@ export class RideService {
     // Format driver details payload for rider
     const cleanPlate = (driverProfile.license_plate || 'MH 02 CZ 4488').trim();
     const carLast4 = cleanPlate.replace(/[^a-zA-Z0-9]/g, '').slice(-4) || '4488';
+    const resolvedUpi = driverProfile.upi_id ||
+      (driverProfile.stripe_account_id?.includes('UPI:') ? driverProfile.stripe_account_id.match(/UPI:([^|]+)/)?.[1] : null) ||
+      driverProfile.upiId ||
+      'vikram.cab@okhdfcbank';
+
     const driverDetails = {
       rideId,
       driverId,
       driverName: driverProfile.cb_users?.full_name || driverProfile.driver_user?.full_name || driverProfile.full_name || 'Driver Partner',
       driverPhone: driverProfile.cb_users?.phone || driverProfile.driver_user?.phone || driverProfile.phone || '+91 98765 43210',
       driverPhoto: driverProfile.cb_users?.avatar_url || driverProfile.driver_user?.avatar_url || driverProfile.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-      driverUpiId: driverProfile.upi_id || driverProfile.upiId || 'vikram.cab@okhdfcbank',
+      driverUpiId: resolvedUpi,
       vehicleMake: driverProfile.vehicle_make || 'Toyota',
       vehicleModel: driverProfile.vehicle_model || 'Camry',
       vehicleColor: driverProfile.vehicle_color || 'Silver Metallic',

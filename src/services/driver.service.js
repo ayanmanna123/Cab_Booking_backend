@@ -80,6 +80,17 @@ export class DriverService {
         logger.warn('User upsert notice in cb_users:', userUpsertErr.message);
       }
 
+      const upiIdClean = (driverData.upiId || driverData.upi_id || '').trim();
+      const aadhaarClean = (driverData.aadhaarNumber || driverData.aadhaar_number || '').trim();
+      let stripeAccountId = null;
+      if (upiIdClean && aadhaarClean) {
+        stripeAccountId = `UPI:${upiIdClean}|AADHAAR:${aadhaarClean}`;
+      } else if (upiIdClean) {
+        stripeAccountId = `UPI:${upiIdClean}`;
+      } else if (aadhaarClean) {
+        stripeAccountId = `AADHAAR:${aadhaarClean}`;
+      }
+
       const payload = {
         user_id: effectiveUserId,
         vehicle_type_id: vehicleTypeId,
@@ -92,8 +103,8 @@ export class DriverService {
         is_available: true,
         current_latitude: driverData.currentLatitude || 37.7749,
         current_longitude: driverData.currentLongitude || -122.4194,
-        stripe_account_id: driverData.aadhaarNumber ? `AADHAAR:${driverData.aadhaarNumber}` : null,
-        upi_id: driverData.upiId || driverData.upi_id || null,
+        stripe_account_id: stripeAccountId,
+        upi_id: upiIdClean || null,
         payout_method: driverData.payoutMethod || driverData.payout_method || 'UPI',
         updated_at: new Date().toISOString()
       };
@@ -135,10 +146,10 @@ export class DriverService {
         vehicleColor: payload.vehicle_color,
         licensePlate: payload.license_plate,
         carImageUrl: userUpdatePayload.avatar_url,
-        aadhaarNumber: driverData.aadhaarNumber || driverData.aadhaar_number,
+        aadhaarNumber: aadhaarClean,
         drivingLicense: driverData.drivingLicense || driverData.driving_license,
         payoutMethod: driverData.payoutMethod || driverData.payout_method || 'UPI',
-        upiId: driverData.upiId || driverData.upi_id || '',
+        upiId: upiIdClean || data?.upi_id || '',
         emergencyContactName: userUpdatePayload.emergency_contact_name,
         emergencyContactPhone: userUpdatePayload.emergency_contact_phone,
         totalEarnings: 0,
@@ -235,10 +246,12 @@ export class DriverService {
           vehicleTypeId: data.vehicle_type_id || 'economy',
           vehicleTierName: vehicleType.name || 'UberX',
           carImageUrl: data.car_image_url || user.avatar_url || 'https://d1a3f4spazzrp4.cloudfront.net/car-types/haloProductImages/Regular/HatchbackMini-Snowflake-520.png',
-          aadhaarNumber: data.stripe_account_id?.replace('AADHAAR:', '') || '',
+          aadhaarNumber: data.stripe_account_id && data.stripe_account_id.includes('AADHAAR:')
+            ? data.stripe_account_id.match(/AADHAAR:([^|]+)/)?.[1]
+            : (data.stripe_account_id && !data.stripe_account_id.includes('UPI:') ? data.stripe_account_id : ''),
           drivingLicense: data.driving_license || '',
           payoutMethod: data.payout_method || 'UPI',
-          upiId: data.upi_id || ''
+          upiId: data.upi_id || (data.stripe_account_id && data.stripe_account_id.includes('UPI:') ? data.stripe_account_id.match(/UPI:([^|]+)/)?.[1] : '') || ''
         };
       }
     }
@@ -248,17 +261,34 @@ export class DriverService {
   static async updatePayoutMethod(userId, { payoutMethod = 'UPI', upiId = '' }) {
     const client = this.getClient();
     if (client) {
-      const { data, error } = await client
+      const cleanUpi = (upiId || '').trim();
+      let payload = {
+        payout_method: payoutMethod,
+        updated_at: new Date().toISOString()
+      };
+      if (cleanUpi) {
+        payload.stripe_account_id = `UPI:${cleanUpi}`;
+        payload.upi_id = cleanUpi;
+      }
+      let { data, error } = await client
         .from(DB_TABLES.DRIVER_PROFILES)
-        .update({
-          payout_method: payoutMethod,
-          upi_id: upiId,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('user_id', userId)
         .select()
         .maybeSingle();
-      if (error) {
+
+      if (error && error.message && (error.message.includes('upi_id') || error.message.includes('payout_method'))) {
+        delete payload.upi_id;
+        delete payload.payout_method;
+        const retry = await client
+          .from(DB_TABLES.DRIVER_PROFILES)
+          .update(payload)
+          .eq('user_id', userId)
+          .select()
+          .maybeSingle();
+        data = retry.data;
+      }
+      if (error && !data) {
         logger.error('Error updating payout method in Supabase:', error);
       }
       return data;
