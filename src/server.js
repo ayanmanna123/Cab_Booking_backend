@@ -12,7 +12,7 @@ initSocketServer(server, ENV.CLIENT_URL);
 // Start HTTP + WebSocket Server
 server.listen(ENV.PORT, () => {
   logger.info(`=======================================================`);
-  logger.info(`🚀 Cab Booking / Uber Clone Backend Server is RUNNING`);
+  logger.info(`🚀 Veyro Mobility Backend Server is RUNNING`);
   logger.info(`📡 Port: ${ENV.PORT}`);
   logger.info(`🌍 Environment: ${ENV.NODE_ENV}`);
   logger.info(`🔗 Base URL: http://localhost:${ENV.PORT}`);

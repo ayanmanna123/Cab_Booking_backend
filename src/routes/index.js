@@ -16,7 +16,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    service: 'Uber Clone / Cab Booking REST API',
+    service: 'Veyro Mobility REST API',
     version: '1.0.0'
   });
 });
